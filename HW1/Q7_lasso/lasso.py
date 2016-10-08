@@ -19,6 +19,7 @@ class Lasso:
         self.lam = lam
         self.delta = delta
         self.yhat = None  # sp.csc_matrix
+        self.N = self.X.shape[0]
 
     def optimize_weights(self):
         print("begin optimizing weights")
@@ -27,13 +28,14 @@ class Lasso:
         old_w = self.w + \
                 sp.csc_matrix(np.ones(self.w.shape[0])).T*2*self.delta #sparse
 
-        assert(self.test_convergence(old_w) is False)
+        assert(self.is_converged(old_w) is False)
 
         # check that the weights haven't converged.
-        while not self.test_convergence(old_w):
-            old_w = self.w   #sparse
+        while not self.is_converged(old_w):
+            old_w = self.w.copy()   #sparse
 
             # calculate predictions to avoid numerical drift.
+            # import pdb; pdb.set_trace()
             old_yhat = self.calculate_yhat()  #not sparse
 
             # update the bias.
@@ -44,10 +46,8 @@ class Lasso:
             self.update_yhat(old_yhat, old_w0)  # updates self.yhat
 
             # iterate over the d features
-            for k in range(1, self.w.shape[0]):
+            for k in range(0, self.w.shape[0]):
                 self.update_wk(k)
-
-                # update the values of w, w0 for the next loop.
 
             # check that the objective function decreased
             old_objective_fun_val = None  #todo: calc
@@ -62,7 +62,7 @@ class Lasso:
     def calculate_yhat(self):
         # multiply X*w + w_o
         # returns vector of predictions, yhat.
-        print("Calc X*w + w_o for w = {}, w_o={}".format(self.w, self.w0))
+        print("Calc X*w + w_0 for w = {}, w_0={}".format(self.w, self.w0))
 
         # don't want to store this yhat.  Temporary.
         yhat = self.X.dot(self.w) + self.w0
@@ -71,64 +71,73 @@ class Lasso:
         return yhat
 
     def update_w0(self, old_yhat):
-        new_w0 = sum(self.y - old_yhat) + self.w0
+        new_w0 = sum(self.y - old_yhat)/self.N + self.w0
         assert type(new_w0*1.0 == float)  # sometimes I had int.
         return new_w0
 
     def update_yhat(self, old_yhat, old_w0):
-        new_yhat = old_yhat + old_w0 - self.w0
-        assert type(new_yhat == np.array)
-        assert new_yhat.shape[1] == 1
-        self.yhat = new_yhat
+        self.yhat = old_yhat + self.w0 - old_w0
+        assert type(self.yhat == np.array)
+        assert self.yhat.shape[1] == 1
 
     def update_wk(self, k):
-        Xik = self.X[:, k-1]  # array  (slice of sparse matrix)
-        wk = self.w[k-1].toarray()[0][0]  # scalar
-
-        ak = 2*Xik.sum()
+        """
+        :param k: zero-indexed column
+        :return:
+        """
+        Xik = self.X[:, k]  # array  (slice of sparse matrix)
+        wk = self.extract_scalar(self.w[k])
+        #import pdb; pdb.set_trace()
+        ak = 2*self.extract_scalar(Xik.T.dot(Xik))
 
         tmp = self.y - self.yhat + Xik.toarray()*wk
         assert tmp.shape[1] == 1  # column vector
-        tmp2 = Xik.T.dot(tmp)
-        assert tmp2.shape == (1,1)
-        ck = 2*(tmp2)[0][0]
+        ck = 2*self.extract_scalar(Xik.T.dot(tmp))
 
         # apply the update rule.
         print("ck: {}, lambda: {}".format(ck, self.lam))
         if ck < - self.lam:
-            self.w[k-1] = (ck + self.lam)/ak
+            self.w[k] = (ck + self.lam)/ak
         elif ck > self.lam:
-            self.w[k-1] = (ck - self.lam)/ak
+            self.w[k] = (ck - self.lam)/ak
         else:
-            # todo: assert in range
-            self.w[k-1] = 0
+            self.w[k] = 0
 
     @staticmethod
     def calc_objective_fun(X, w, w0, y):
         pass
 
-    def test_convergence(self, old_w):
+    def is_converged(self, old_w):
         # stop when no element of w changes by more than some small delta
         # return True if it is time to stop.
         # see HW pg 8.
 
         print("Testing convergence.")
-        print("Old w: {}, new w: {}".format(old_w, self.w))
+        print("Old w: {}, new w: {}".format(old_w.toarray(),
+                                            self.w.toarray()))
 
         # make a vector of the differences in each element
         delta_w = old_w - self.w
 
         for w_i in delta_w :
-            if w_i > self.delta:
+            if abs(w_i) > self.delta:
                 return False
-            else:
-                return True
+
+        return True
 
     @staticmethod
     def check_for_objective_increase():
         # need a nonincreasing objective value
         pass
 
+    @staticmethod
+    def extract_scalar(m):
+        """
+        :param m: A 1x1 sparse matrix.
+        :return: The entry in that matrix.
+        """
+        assert(m.shape == (1,1))
+        return m[0,0]
 
 
 class RegularizationPath:
