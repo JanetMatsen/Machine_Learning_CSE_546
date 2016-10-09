@@ -5,6 +5,7 @@ import seaborn as sns
 def analyze_results(ridge_obj, cutoff):
 
     truth = ridge_obj.y.toarray()[:,0]
+    N = len(truth)
 
     # categorize the info
     y_preds_for_2s = ridge_obj.y_preds[truth ==1]
@@ -20,18 +21,22 @@ def analyze_results(ridge_obj, cutoff):
 
     # check that the results sum up correctly.
     assert(len(true_positives) + len(true_negatives) +
-           len(false_positives) + len(false_negatives) == len(truth))
+           len(false_positives) + len(false_negatives) == N)
 
     call_counts = {"true + count": len(true_positives),
                    "true - count": len(true_negatives),
                    "false + count": len(false_positives),
                    "false - count": len(false_negatives)}
+
+    call_fracs = {k: v/N for k, v in call_counts.items()}
     y_vals = {"true +": true_positives, "true -": true_negatives,
             "false +": false_positives, "false -": false_negatives}
 
     # you get one point for every correct prediction and 0 for every wrong one.
     loss_01 = len(false_positives) + len(false_negatives)
-    loss_01_norm = loss_01/len(truth)
+    loss_01_norm = loss_01/N
 
-    return {"call_counts": call_counts, "y_vals": y_vals,
+    return {"call_counts": call_counts,
+            "call_fracs": call_fracs,
+            "y_vals": y_vals,
             "loss_01": loss_01, "loss_01_norm": loss_01_norm}
