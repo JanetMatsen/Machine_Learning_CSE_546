@@ -2,49 +2,30 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as splin
 
-def ridge(X, y, lam):
+class Ridge:
+    def __init__(self, X, y, lam):
 
-    assert type(X) == sp.csc_matrix or type(X) == sp.csr_matrix
-    assert type(lam*1.0) == float
-    #assert type(y) == np.ndarray
-    assert type(y) == sp.csr_matrix or type(y) == sp.csc_matrix
+        assert type(X) == sp.csc_matrix or type(X) == sp.csr_matrix
+        assert type(lam*1.0) == float
+        #assert type(y) == np.ndarray
+        assert type(y) == sp.csr_matrix or type(y) == sp.csc_matrix
 
+        self.X = X
+        self.y = y
+        self.lam = lam
+        #self.cutoff = cutoff
 
-    D = X.shape[1]  # d = number of features/columns
-    # find lambda*I_D + X^T*X
-    piece_to_invert = sp.identity(D)*lam + X.T.dot(X)
+    def solve_coeffs(self):
 
-    #inverted_piece = piece_to_invert.linalg.inv()
-    inverted_piece = splin.inv(piece_to_invert)
+        D = self.X.shape[1]  # d = number of features/columns
+        # find lambda*I_D + X^T*X
+        piece_to_invert = sp.identity(D)*self.lam + self.X.T.dot(self.X)
 
-    solution = inverted_piece.dot(X.T)
-    solution = solution.dot(y)
+        #inverted_piece = piece_to_invert.linalg.inv()
+        inverted_piece = splin.inv(piece_to_invert)
 
-    return solution
+        solution = inverted_piece.dot(self.X.T)
+        solution = solution.dot(self.y)
 
-def analyze_results(X, y, coeff, cutoff):
-
-    import pdb; pdb.set_trace()
-    assert type(X) == sp.csc_matrix or type(X) == sp.csr_matrix
-    assert type(y) == sp.csr_matrix or type(y) == sp.csc_matrix
-
-    y_predictions = X.dot(coeff).toarray()[:, 0]
-    truth = y.toarray()[:,0]
-
-    # categorize the info
-    ys_for_3s = y_predictions[truth ==1]
-    ys_for_other_numbers = y_predictions[truth == 0]
-
-    true_positives = ys_for_3s [ys_for_3s >= cutoff]
-    true_negatives = ys_for_other_numbers[ys_for_other_numbers <= cutoff]
-
-    false_positives = ys_for_3s [ys_for_3s < cutoff]
-    false_negatives = ys_for_other_numbers[ys_for_other_numbers > cutoff]
-
-    # check that the results sum up correctly.
-    assert(len(true_positives) + len(true_negatives) +
-           len(false_positives) + len(false_negatives) == len(truth))
-
-    
-
-
+        self.solution_coeffs = solution
+        self.y_preds = self.X.dot(self.solution_coeffs).toarray()[:, 0]
