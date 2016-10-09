@@ -22,17 +22,29 @@ def ridge(X, y, lam):
 
     return solution
 
-def analyze_results(X, y, cutoff):
+def analyze_results(X, y, coeff, cutoff):
 
     import pdb; pdb.set_trace()
     assert type(X) == sp.csc_matrix or type(X) == sp.csr_matrix
     assert type(y) == sp.csr_matrix or type(y) == sp.csc_matrix
 
-    y_predictions = X.dot(sol).toarray()[:, 0]
+    y_predictions = X.dot(coeff).toarray()[:, 0]
     truth = y.toarray()[:,0]
 
     # categorize the info
     ys_for_3s = y_predictions[truth ==1]
     ys_for_other_numbers = y_predictions[truth == 0]
 
-    true_positives =
+    true_positives = ys_for_3s [ys_for_3s >= cutoff]
+    true_negatives = ys_for_other_numbers[ys_for_other_numbers <= cutoff]
+
+    false_positives = ys_for_3s [ys_for_3s < cutoff]
+    false_negatives = ys_for_other_numbers[ys_for_other_numbers > cutoff]
+
+    # check that the results sum up correctly.
+    assert(len(true_positives) + len(true_negatives) +
+           len(false_positives) + len(false_negatives) == len(truth))
+
+    
+
+
