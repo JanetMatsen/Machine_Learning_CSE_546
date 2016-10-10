@@ -32,6 +32,9 @@ class Lasso:
 
         # check that the weights haven't converged.
         while not self.is_converged(old_w):
+            print("-- new round of wk updates --")
+            print("old_w:")
+            print(old_w.toarray())
             old_w = self.w.copy()   #sparse
 
             # calculate predictions to avoid numerical drift.
@@ -54,26 +57,40 @@ class Lasso:
             new_objective_fun_val = None  #todo: calc
             #assert(new_objective_fun_val < old_objective_fun_val)
 
-        print("Lasso optimized.")
-        print("w: {}, w0: {}".format(self.w.toarray(), self.w0))
+            print("weights for this loop:")
+            print(self.w.toarray())
+
+        print("=== Lasso optimized. ===")
+        self.print_weights()
+        print("--- final predictions ---")
+        yhat = self.calculate_yhat()
+        print("final y predictions:")
+        print(yhat)
 
         return
 
     def calculate_yhat(self):
         # multiply X*w + w_o
         # returns vector of predictions, yhat.
-        print("Calc X*w + w_0 for w = {}, w_0={}".format(self.w, self.w0))
+        print("Calc X*w + w_0 for")
+        print(self.w.toarray())
+        print("  and w0 = {}".format(self.w0))
 
         # don't want to store this yhat.  Temporary.
-        yhat = self.X.dot(self.w) + self.w0
-        yhat = yhat.toarray()
-        assert yhat.shape[1] == 1
+        #yhat =self.X.dot(self.w).toarray()[:,0] + self.w0
+        #assert yhat.shape == (self.N, )
+        yhat = self.X.dot(self.w) +  np.ones((self.N, 1))*self.w0
+        assert yhat.shape == (self.N, 1)
+        print("current yhat prediction:")
+        print(yhat)
+
         return yhat
 
     def update_w0(self, old_yhat):
         new_w0 = sum(self.y - old_yhat)/self.N + self.w0
-        assert type(new_w0*1.0 == float)  # sometimes I had int.
-        return new_w0
+        new_w0 = self.extract_scalar(new_w0)
+        assert type(new_w0*1.0) == np.float64  # sometimes I had int.
+        self.w0 = new_w0
 
     def update_yhat(self, old_yhat, old_w0):
         self.yhat = old_yhat + self.w0 - old_w0
@@ -87,7 +104,6 @@ class Lasso:
         """
         Xik = self.X[:, k]  # array  (slice of sparse matrix)
         wk = self.extract_scalar(self.w[k])
-        #import pdb; pdb.set_trace()
         ak = 2*self.extract_scalar(Xik.T.dot(Xik))
 
         tmp = self.y - self.yhat + Xik.toarray()*wk
@@ -95,13 +111,22 @@ class Lasso:
         ck = 2*self.extract_scalar(Xik.T.dot(tmp))
 
         # apply the update rule.
-        print("ck: {}, lambda: {}".format(ck, self.lam))
+        print("ck = {} for k = {}, ak ={}, lambda: {}".format(
+            ck, k, ak, self.lam))
         if ck < - self.lam:
             self.w[k] = (ck + self.lam)/ak
         elif ck > self.lam:
+            print("self.w[k]: {}".format(self.w[k]))
+            print("ck > self.lam, so update w[{}] from {}".format(
+                k, self.extract_scalar(self.w[k])))
+            print( "new w[{}]: {}".format(k, (ck - self.lam)/ak))
             self.w[k] = (ck - self.lam)/ak
         else:
             self.w[k] = 0
+
+        # update yhat.  wk is the old value and self.w[k] is the new one.
+        self.yhat = self.y + Xik*(wk - self.extract_scalar(self.w[k]))
+        assert self.yhat.shape == (self.N, 1)
 
     @staticmethod
     def calc_objective_fun(X, w, w0, y):
@@ -113,8 +138,7 @@ class Lasso:
         # see HW pg 8.
 
         print("Testing convergence.")
-        print("Old w: {}, new w: {}".format(old_w.toarray(),
-                                            self.w.toarray()))
+        self.print_weights()
 
         # make a vector of the differences in each element
         delta_w = old_w - self.w
@@ -138,6 +162,12 @@ class Lasso:
         """
         assert(m.shape == (1,1))
         return m[0,0]
+
+    def print_weights(self):
+        print("w:")
+        print(self.w.toarray())
+        print("w0:")
+        print(self.w0)
 
 
 class RegularizationPath:
