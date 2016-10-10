@@ -32,6 +32,8 @@ class Lasso:
         # have to initialize old_w before entering the while loop.
         old_w = self.w + \
                 sp.csc_matrix(np.ones(self.w.shape[0])).T*2*self.delta #sparse
+        # Initialize a high objective function value for the first loop.
+        old_objective_fun_val = 10**100
 
         assert(self.is_converged(old_w) is False)
 
@@ -56,12 +58,32 @@ class Lasso:
                 print(old_w.toarray())
             # iterate over the d features
             for k in range(0, self.w.shape[0]):
+                # note: also updates the yhats element by element.
                 self.update_wk(k)
 
             # check that the objective function decreased
-            old_objective_fun_val = None  #todo: calc
-            new_objective_fun_val = None  #todo: calc
-            #assert(new_objective_fun_val < old_objective_fun_val)
+            new_objective_fun_val = self.calc_objective_fun()
+
+            if not self.check_for_objective_decrease(
+                    old_value = old_objective_fun_val,
+                    new_value = new_objective_fun_val):
+                print("** Woah.  Objective would increase.  Weights:")
+                print("old w:")
+                print(old_w.toarray())
+                print("old w0: {}".format(old_w0))
+                self.print_weights()
+                print("old predictions:")
+                print(old_yhat)
+                print("new predictions:")
+                print(self.yhat)
+                import pdb; pdb.set_trace()
+            assert self.check_for_objective_decrease(
+                    old_value = old_objective_fun_val,
+                    new_value = new_objective_fun_val) is True, \
+                   "objecive function would be updated from {} to {}".format(
+                    old_objective_fun_val, new_objective_fun_val)
+
+            old_objective_fun_val = new_objective_fun_val
 
             if self.verbose:
                 print("weights for this loop:")
@@ -74,6 +96,8 @@ class Lasso:
             yhat = self.calculate_yhat()
             print("final y predictions:")
             print(yhat)
+            print("objective function value: {}".format(
+                self.calc_objective_fun()))
 
         return
 
@@ -81,13 +105,14 @@ class Lasso:
         # multiply X*w + w_o
         # returns vector of predictions, yhat.
         if self.verbose:
-            print("Calc X*w + w_0 for")
+            print("Calc X*w + w_0 for w =")
             print(self.w.toarray())
             print("  and w0 = {}".format(self.w0))
 
         # don't want to store this yhat.  Temporary.
         #yhat =self.X.dot(self.w).toarray()[:,0] + self.w0
         #assert yhat.shape == (self.N, )
+        # todo: use my function for a w0 array.
         yhat = self.X.dot(self.w) +  np.ones((self.N, 1))*self.w0
         assert yhat.shape == (self.N, 1)
 
@@ -141,9 +166,13 @@ class Lasso:
         self.yhat = self.y + Xik*(wk - self.extract_scalar(self.w[k]))
         assert self.yhat.shape == (self.N, 1)
 
-    @staticmethod
-    def calc_objective_fun(X, w, w0, y):
-        pass
+    def calc_objective_fun(self):
+        preds = self.X.dot(self.w) + self.w0_as_array()
+        preds_error = preds - self.y
+        preds_error_squared = \
+            self.extract_scalar(preds_error.T.dot(preds_error))
+        penalty = self.lam * np.linalg.norm(self.w.toarray()[:,0], 1)
+        return preds_error_squared + penalty
 
     def is_converged(self, old_w):
         # stop when no element of w changes by more than some small delta
@@ -163,10 +192,15 @@ class Lasso:
 
         return True
 
+    def w0_as_array(self):
+        return np.ones((self.N, 1))*self.w0
+
     @staticmethod
-    def check_for_objective_increase():
-        # need a nonincreasing objective value
-        pass
+    def check_for_objective_decrease(old_value, new_value):
+        if new_value - old_value < 10**(-6):
+            return True
+        else:
+            return False
 
     @staticmethod
     def extract_scalar(m):
