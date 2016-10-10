@@ -44,7 +44,6 @@ class Lasso:
             old_w = self.w.copy()   #sparse
 
             # calculate predictions to avoid numerical drift.
-            # import pdb; pdb.set_trace()
             old_yhat = self.calculate_yhat()  #not sparse
 
             # update the bias.
@@ -78,7 +77,6 @@ class Lasso:
                 print(old_yhat)
                 print("new predictions:")
                 print(self.yhat)
-                import pdb; pdb.set_trace()
             assert self.check_for_objective_decrease(
                     old_value = old_objective_fun_val,
                     new_value = new_objective_fun_val) is True, \
@@ -226,7 +224,6 @@ def sklearn_comparison(X, y, lam):
     # store solutions in my Lasso class so I can look @ obj fun
     dummy_weights =  X[1,:].T  # will write over this
     assert dummy_weights.shape == (X.shape[1], 1)
-    import pdb; pdb.set_trace()
     skl_lasso = Lasso(X, y, lam, w=dummy_weights,
                       w0=0, delta=0.001, verbose = False)
     skl_lasso.w = sp.csc_matrix(clf.coef_).T
