@@ -244,22 +244,30 @@ def generate_random_data(N, d, sigma, k=5):
     # generate X
     X = np.reshape(np.random.normal(0, 1, N*d),
                    newshape = (N, d), order='C')
+    assert X.shape == (N, d)
 
     # generate w* with the first k elements being nonzero.
     # todo: k is hard coded for now.
-    w = np.zeros(d)
+    w = np.zeros((d, 1), dtype=float)
     w[0] = 10
     w[1] = -10
     w[2] = 10
     w[3] = -10
     w[4] = 10
+    assert w.shape == (d, 1)
 
     # generate error
-    e = np.random.normal(0, sigma**2, N)
+    e = np.reshape(np.random.normal(0, sigma**2, N), newshape = (N, 1))
+    assert e.shape == (N, 1)
 
     # generate noisy Y
     Y = X.dot(w) + w0 + e
+    Y.reshape(N, 1)
+    assert Y.shape == (N, 1)
 
+    assert X.shape == (N, d)
+    assert Y.shape == (N, 1)
+    assert w.shape == (d, 1)
     return X, Y, w
 
 
