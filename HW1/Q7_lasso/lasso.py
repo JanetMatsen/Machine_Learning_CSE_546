@@ -11,6 +11,8 @@ class Lasso:
                   Rows are training data and columns are features.
         :param wo: initial weight to use for bias.  Not sparse.
         """
+        # todo: problem asks for option to input w.  It's hard coded.
+
         for a in [X, w]:
             assert(type(a[0,0]) == np.float64)
 
@@ -167,6 +169,7 @@ class Lasso:
         assert self.yhat.shape == (self.N, 1)
 
     def calc_objective_fun(self):
+        import pdb; pdb.set_trace()
         preds = self.X.dot(self.w) + self.w0_as_array()
         preds_error = preds - self.y
         preds_error_squared = \
@@ -235,6 +238,33 @@ def sklearn_comparison(X, y, lam):
             "weights": clf.coef_,
             "intercept": clf.intercept_})
 
+
+def generate_random_data(N, d, sigma, k=5):
+    assert(d > N)
+
+    # generate w0
+    w0 = 0
+
+    # generate X
+    X = np.reshape(np.random.normal(0, 1, N*d),
+                   newshape = (N, d), order='C')
+
+    # generate w* with the first k elements being nonzero.
+    # todo: k is hard coded for now.
+    w = np.zeros(d)
+    w[0] = 10
+    w[1] = -10
+    w[2] = 10
+    w[3] = -10
+    w[4] = 10
+
+    # generate error
+    e = np.random.normal(0, sigma**2, N)
+
+    # generate noisy Y
+    Y = X.dot(w) + w0 + e
+
+    return X, Y, w
 
 
 class RegularizationPath:
