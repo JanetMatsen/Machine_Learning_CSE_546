@@ -1,8 +1,10 @@
 import numpy as np
 import scipy.sparse as sp
+# analyze my solution by comparing objective functions
+from sklearn import linear_model
 
 class Lasso:
-    def __init__(self, X, y, lam, w, w0=0, delta=0.01, verbose = False):
+    def __init__(self, X, y, lam, w, w0=0, delta=0.000001, verbose = False):
         """
 
         :param X: A scipy.csc matrix (sparse matrix) of features.
@@ -215,6 +217,27 @@ class Lasso:
         print("w:")
         print(self.w.toarray())
         print("w0: {}".format(self.w0))
+
+
+def sklearn_comparison(X, y, lam):
+    alpha = lam/X.shape[0]
+    clf = linear_model.Lasso(alpha)
+    clf.fit(X, y)
+    # store solutions in my Lasso class so I can look @ obj fun
+    dummy_weights =  X[1,:].T  # will write over this
+    assert dummy_weights.shape == (X.shape[1], 1)
+    import pdb; pdb.set_trace()
+    skl_lasso = Lasso(X, y, lam, w=dummy_weights,
+                      w0=0, delta=0.001, verbose = False)
+    skl_lasso.w = sp.csc_matrix(clf.coef_).T
+    skl_lasso.w0 = clf.intercept_
+
+    skl_objective_fun_value = skl_lasso.calc_objective_fun()
+
+    return({"objective": skl_objective_fun_value,
+            "weights": clf.coef_,
+            "intercept": clf.intercept_})
+
 
 
 class RegularizationPath:
