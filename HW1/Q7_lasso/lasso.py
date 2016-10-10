@@ -4,7 +4,7 @@ import scipy.sparse as sp
 from sklearn import linear_model
 
 class Lasso:
-    def __init__(self, X, y, lam, w, w0=0, delta=0.000001, verbose = False):
+    def __init__(self, X, y, lam, w, w0=0, delta=0.001, verbose = False):
         """
 
         :param X: A scipy.csc matrix (sparse matrix) of features.
@@ -112,10 +112,7 @@ class Lasso:
             print("  and w0 = {}".format(self.w0))
 
         # don't want to store this yhat.  Temporary.
-        #yhat =self.X.dot(self.w).toarray()[:,0] + self.w0
-        #assert yhat.shape == (self.N, )
-        # todo: use my function for a w0 array.
-        yhat = self.X.dot(self.w) +  np.ones((self.N, 1))*self.w0
+        yhat = self.X.dot(self.w) + self.w0_as_array()
         assert yhat.shape == (self.N, 1)
 
         if self.verbose:
@@ -127,7 +124,6 @@ class Lasso:
     def update_w0(self, old_yhat):
         new_w0 = sum(self.y - old_yhat)/self.N + self.w0
         new_w0 = self.extract_scalar(new_w0)
-        assert type(new_w0*1.0) == np.float64  # sometimes I had int.
         self.w0 = new_w0
 
     def update_yhat(self, old_yhat, old_w0):
@@ -165,7 +161,7 @@ class Lasso:
             self.w[k] = 0
 
         # update yhat.  wk is the old value and self.w[k] is the new one.
-        self.yhat = self.y + Xik*(wk - self.extract_scalar(self.w[k]))
+        self.yhat = self.yhat + Xik*(self.extract_scalar(self.w[k]) - wk)
         assert self.yhat.shape == (self.N, 1)
 
     def calc_objective_fun(self):
@@ -221,7 +217,7 @@ class Lasso:
 
 
 def sklearn_comparison(X, y, lam):
-    alpha = lam/X.shape[0]
+    alpha = lam/(2.*X.shape[0])
     clf = linear_model.Lasso(alpha)
     clf.fit(X, y)
     # store solutions in my Lasso class so I can look @ obj fun
