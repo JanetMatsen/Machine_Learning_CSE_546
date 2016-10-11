@@ -2,9 +2,11 @@ import numpy as np
 import scipy.sparse as sp
 # analyze my solution by comparing objective functions
 from sklearn import linear_model
+import pandas as pd
 
 class Lasso:
-    def __init__(self, X, y, lam, w, w0=0, delta=0.001, verbose = False):
+    def __init__(self, X, y, lam, w=None, w0=0, delta=0.001,
+                 verbose = False, sparse = True):
         """
 
         :param X: A scipy.csc matrix (sparse matrix) of features.
@@ -13,20 +15,34 @@ class Lasso:
         """
         # todo: problem asks for option to input w.  It's hard coded.
 
-        for a in [X, w]:
-            assert(type(a[0,0]) == np.float64)
+        #for a in [X, w]:
+        #    assert(type(a[0,0]) == np.float64)
+        assert(type(X[0,0]) == np.float64)
+        if w is not None:
+            assert(type(w[0,0]) == np.float64)
 
-        assert type(X) == sp.csc_matrix
+        if sparse:
+            if type(X) == np.ndarray:
+                X = sp.csc_matrix(X)
+            assert type(X) == sp.csc_matrix
         self.X = X
+        self.N = self.X.shape[0]
+        self.d = self.X.shape[1]
+
         assert type(y) == np.ndarray
         self.y = y
+
+        if w is None:
+            w = np.ones((self.d, 1), dtype=float)
+        if sparse:
+            w = sp.csc_matrix(w)
         self.w = w        # sp.csc_matrix
-        assert w.shape == (self.X.shape[1], 1)
+        assert w.shape == (self.d, 1)
+
         self.w0 = w0*1.
         self.lam = lam
         self.delta = delta
         self.yhat = None  # sp.csc_matrix
-        self.N = self.X.shape[0]
         self.verbose = verbose
 
     def optimize_weights(self):
@@ -165,7 +181,6 @@ class Lasso:
         assert self.yhat.shape == (self.N, 1)
 
     def calc_objective_fun(self):
-        import pdb; pdb.set_trace()
         preds = self.X.dot(self.w) + self.w0_as_array()
         preds_error = preds - self.y
         preds_error_squared = \
@@ -216,7 +231,7 @@ class Lasso:
         print("w0: {}".format(self.w0))
 
 
-def sklearn_comparison(X, y, lam):
+def sklearn_comparison(X, y, lam, sparse = False):
     alpha = lam/(2.*X.shape[0])
     clf = linear_model.Lasso(alpha)
     clf.fit(X, y)
@@ -224,7 +239,7 @@ def sklearn_comparison(X, y, lam):
     dummy_weights =  X[1,:].T  # will write over this
     assert dummy_weights.shape == (X.shape[1], 1)
     skl_lasso = Lasso(X, y, lam, w=dummy_weights,
-                      w0=0, delta=0.001, verbose = False)
+                      w0=0, verbose = False, sparse=sparse)
     skl_lasso.w = sp.csc_matrix(clf.coef_).T
     skl_lasso.w0 = clf.intercept_
 
@@ -269,6 +284,72 @@ def generate_random_data(N, d, sigma, k=5):
     assert Y.shape == (N, 1)
     assert w.shape == (d, 1)
     return X, Y, w
+
+
+class paramSweepRandData():
+    def __init__(self, N, d, sigma, init_lam, frac_decrease, k=5):
+        self.N = N
+        self.d = d
+        self.sigma = sigma
+        self.k = k
+        self.init_lam = init_lam
+        self.frac_decrease = frac_decrease
+        X, Y, true_weights = generate_random_data(N=N, d=d,
+                                                  sigma=sigma, k=k)
+        self.X = X
+        self.Y = Y
+        self.true_weights = true_weights
+
+    def sklearn_weights(self, lam):
+
+        # compute the "correct" answer:
+        #sklearn_weights = sklearn_comparison(X, Y, lam)['weights']
+        alpha = lam/self.X.shape[0]
+        clf = linear_model.Lasso(alpha)
+        clf.fit(self.X, self.Y)
+        return clf.coef_
+
+    def loop_lambda(self):
+        # protect the first value of lambda.
+        lam = self.init_lam/self.frac_decrease
+
+        # initialize a dataframe to store results in
+        results = pd.DataFrame()
+        for c in range(0,5):
+            lam = lam*self.frac_decrease
+
+            sklearn_weights = self.sklearn_weights(lam)
+
+            # Compute my (hopefully correct) answer:
+            result = Lasso(self.X, self.Y, lam)
+            assert result.w.shape == (self.d, 1) # check before we slice out
+            regression_weights = result.w.toarray()[:,0]
+
+            precision, recall = calc_percision_and_recall(self.true_weights,
+                                                          regression_weights,
+                                                          k=5)
+
+            one_val = pd.DataFrame({"sigma":[self.sigma], "lam":[lam],
+                                    "precision":[precision],
+                                    "recall":[recall],
+                                    "sklearn weights":[sklearn_weights],
+                                    "my weights":[regression_weights]})
+            results = pd.concat([results, one_val])
+
+            self.results = results
+
+
+def calc_percision_and_recall(true_weights, regression_weights, k):
+    # TODO: make it a method of paramSweepRandData
+    # (number of correct nonzeros in w^hat)/k
+    # True array for regression weight ~ 0:
+    true_weights = [abs(r) > 0.001 for r in true_weights]
+    regression_weights = [abs(r) > 0.001 for r in regression_weights]
+    # Zip these together and count pairs that are both True
+    agreement = [i == j for i,j in zip(true_weights,regression_weights)]
+    percision = sum(agreement)/sum(true_weights)
+    recall = sum(agreement)/k
+    return percision, recall
 
 
 class RegularizationPath:
