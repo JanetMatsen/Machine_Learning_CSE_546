@@ -325,9 +325,8 @@ class paramSweepRandData():
             assert result.w.shape == (self.d, 1) # check before we slice out
             regression_weights = result.w.toarray()[:,0]
 
-            precision, recall = calc_percision_and_recall(self.true_weights,
-                                                          regression_weights,
-                                                          k=5)
+            precision, recall = \
+                self.calc_precision_and_recall(regression_weights)
 
             one_val = pd.DataFrame({"sigma":[self.sigma], "lam":[lam],
                                     "precision":[precision],
@@ -338,18 +337,22 @@ class paramSweepRandData():
 
             self.results = results
 
+    def calc_precision_and_recall(self, regression_weights, z=0.001):
+        # True array for regression weight ~ 0:
+        true_weights_array = self.true_weights.reshape(1, self.d)
+        abs_weights = np.absolute(true_weights_array)
+        nonzero_weights = abs_weights > z
 
-def calc_percision_and_recall(true_weights, regression_weights, k):
-    # TODO: make it a method of paramSweepRandData
-    # (number of correct nonzeros in w^hat)/k
-    # True array for regression weight ~ 0:
-    true_weights = [abs(r) > 0.001 for r in true_weights]
-    regression_weights = [abs(r) > 0.001 for r in regression_weights]
-    # Zip these together and count pairs that are both True
-    agreement = [i == j for i,j in zip(true_weights,regression_weights)]
-    percision = sum(agreement)/sum(true_weights)
-    recall = sum(agreement)/k
-    return percision, recall
+        reg_weight_array = regression_weights.reshape(1, self.d)
+        abs_reg_weights = np.absolute(reg_weight_array)
+        nonzero_reg_weights = abs_reg_weights > z
+
+        agreement = np.bitwise_and(nonzero_weights, nonzero_reg_weights)
+        # precision = (# correct nonzeros in w^hat)/(num zeros in w^hat)
+        precision = agreement.sum()/nonzero_reg_weights.sum()
+        # recall = (number of correct nonzeros in w^hat)/k
+        recall = agreement.sum()/self.k
+        return precision, recall
 
 
 class RegularizationPath:
