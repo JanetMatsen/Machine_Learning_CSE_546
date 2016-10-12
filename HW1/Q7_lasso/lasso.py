@@ -22,12 +22,17 @@ class SparseLasso:
         # TODO: make w if it is not provided
 
         self.X = sp.csc_matrix(X)
+        self.N, self.d = self.X.shape
         self.y = sp.csc_matrix([y]).T
-        self.w = sp.csc_matrix([w]).T
+        if w is None:
+            self.w = sp.csc_matrix(np.ones(self.d)).T
+        elif type(w) == np.ndarray:
+            self.w = sp.csc_matrix([w]).T
+        else:
+            assert False, "w is not None or a numpy array."
         self.w0 = w0
         self.lam = lam
         self.delta = delta
-        self.N, self.d = self.X.shape
         self.verbose = verbose
         self.max_iter = max_iter
 
@@ -93,14 +98,11 @@ def sklearn_comparison(X, y, lam, sparse = False):
     clf = linear_model.Lasso(alpha)
     clf.fit(X, y)
     # store solutions in my Lasso class so I can look @ obj fun
-    dummy_weights =  X[1,:].T  # will write over this
-    assert dummy_weights.shape == (X.shape[1], 1)
-    skl_lasso = Lasso(X, y, lam, w=dummy_weights,
-                      w0=0, verbose = False, sparse=sparse)
+    skl_lasso = SparseLasso(X, y, lam, w0=0, verbose = False)
     skl_lasso.w = sp.csc_matrix(clf.coef_).T
     skl_lasso.w0 = clf.intercept_
 
-    skl_objective_fun_value = skl_lasso.calc_objective_fun()
+    skl_objective_fun_value = skl_lasso.objective()
 
     return({"objective": skl_objective_fun_value,
             "weights": clf.coef_,
@@ -178,7 +180,7 @@ class paramSweepRandData():
             sklearn_weights = self.sklearn_weights(lam)
 
             # Compute my (hopefully correct) answer:
-            result = Lasso(self.X, self.Y, lam)
+            result = SparseLasso(self.X, self.Y, lam)
             assert result.w.shape == (self.d, 1) # check before we slice out
             regression_weights = result.w.toarray()[:,0]
 
