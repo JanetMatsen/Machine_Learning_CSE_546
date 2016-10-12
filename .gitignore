@@ -1,6 +1,8 @@
 *.pdf
 *.png
 
+HW1/Q7_lasso/depreciated/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
