@@ -42,10 +42,12 @@ class SparseLasso:
     def w0_array(self):
         return np.ones((self.N, 1))*self.w0
 
-    def objective(self):
+    def rmse(self):
         error_v = self.X.dot(self.w) + self.w0_array() - self.y
-        return self.extract_scalar(error_v.T.dot(error_v)) + \
-                self.lam*self.l1_norm(self.w)
+        return self.extract_scalar(error_v.T.dot(error_v))
+
+    def objective(self):
+        return  self.rmse() + self.lam*self.l1_norm(self.w)
 
     def step(self):
         yhat = self.X.dot(self.w) + self.w0_array()
@@ -241,13 +243,13 @@ class SyntheticDataRegPath():
 
 
 class RegularizationPathTrainTest:
-    def __init__(self, X_train, y_train, lam_max, X_test, y_test,
+    def __init__(self, X_train, y_train, lam_max, X_val, y_val,
                  steps=10, frac_decrease=0.1):
         self.X_train = X_train
         self.y_train = y_train
         self.lam_max = lam_max
-        self.X_test = X_test
-        self.y_test = y_test
+        self.X_val = X_val
+        self.y_val = y_val
         self.steps = steps
         self.frac_decrease = frac_decrease
         reg_path = RegularizationPath(X=self.X_train, y=self.y_train,
@@ -258,34 +260,32 @@ class RegularizationPathTrainTest:
         self.results_df = reg_path.results_df
 
     def analyze_path(self):
-        # df['newcolumn'] = df.apply(lambda x: fxy(x['A'], x['B']), axis=1)
-        self.results_df['validation error'] = \
+        self.results_df['RMSE (training)'] = \
             self.results_df.apply(
-                lambda x: self.calc_val_error(x['w'], x['w0']))
+                lambda x: self.rmse_train(x['weights'], x['w0']), axis=1)
+        self.results_df['RMSE (validation)'] = \
+            self.results_df.apply(
+                lambda x: self.rmse_test(x['weights'], x['w0']), axis=1)
 
-        #self.results_df['RMSE (training)'].apply(self.calc_rmse_training)
-        #self.results_df['RMSE (validation)'].apply(self.calc_rmse_test)
-        #self.results_df['# nonzero coefficients'].apply(self.num_nonzero_coefs())
-
-    def calc_val_error(self):
-        # validation error = sum(Xw - w0 - yi)
-        pass
+        self.results_df['# nonzero coefficients'] = \
+            self.results_df['weights'].apply(self.num_nonzero_coefs)
 
     def calc_rmse(self, X, w, w0, y):
         # re-use the formula implemented in SparseLasso.
         # put in a random lam b/c it isn't used.
         sl = SparseLasso(X, y, lam=0, verbose=False)
         # store solutions in my Lasso class so I can look @ obj fun
-        sl.w = w
+        sl.w = w.reshape(w.shape[0], 1)
         sl.w0 = w0
-        return sl.objective()
+        return sl.rmse()
 
-    def calc_rmse_training(self, w, w0):
-        return self.calc_rmse(x=self.X_train, w=w, w0=w0, y=self.y_train)
+    def rmse_train(self, w, w0):
+        return self.calc_rmse(X=self.X_train, w=w, w0=w0, y=self.y_train)
 
-    def calc_rmse(self):
-        pass
+    def rmse_test(self, w, w0):
+        return self.calc_rmse(X=self.X_val, w=w, w0=w0, y=self.y_val)
 
-    def num_nonzero_coefs(self):
-        pass
+    def num_nonzero_coefs(self, w, z=0.001):
+        nonzero_weights = np.absolute(w) > z
+        return nonzero_weights.sum()
 
