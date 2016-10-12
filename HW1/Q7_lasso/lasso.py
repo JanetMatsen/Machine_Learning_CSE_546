@@ -80,8 +80,9 @@ class SparseLasso:
             if abs(old_w - self.w).max() < self.delta:
                 break
 
-        print(self.objective())
-        print(self.w)
+        if self.verbose:
+            print(self.objective())
+            print(self.w)
 
     @staticmethod
     def l1_norm(v):
@@ -147,60 +148,74 @@ def generate_random_data(N, d, sigma, k=5):
     return X, Y, w
 
 
-class paramSweepRandData():
-    def __init__(self, N, d, sigma, init_lam, frac_decrease, k=5):
+class RegularizationPath:
+    def __init__(self, X, y, lam_max, frac_decrease, steps):
+        self.X = X
+        self.y = y
+        self.N, self.d = self.X.shape
+        self.lam_max = lam_max
+        self.frac_decrease = frac_decrease
+        self.steps = steps
+
+    def analyze_lam(self, lam, w):
+        sl = SparseLasso(self.X, self.y, lam, w=w)
+        sl.run()
+        assert sl.w.shape == (self.d, 1) # check before we slice out
+        return sl.w.toarray()[:,0]
+
+    def walk_path(self):
+        # protect the first value of lambda.
+        lam = self.lam_max/self.frac_decrease
+        w_prev = None
+
+        # initialize a dataframe to store results in
+        results = pd.DataFrame()
+        for c in range(0, self.steps):
+            print("Loop {}:solving weights.".format(c+1))
+            lam = lam*self.frac_decrease
+
+            w = self.analyze_lam(lam, w=w_prev)
+
+            one_val = pd.DataFrame({"lam":[lam],
+                                    "weights":[w]})
+            results = pd.concat([results, one_val])
+            w_prev = w
+
+        self.results_df = results
+
+    def determine_smallest_lambda(self):
+        pass
+
+
+class SyntheticDataRegPath():
+    def __init__(self, N, d, sigma, lam_max, frac_decrease, k=5, steps=10):
         self.N = N
         self.d = d
         self.sigma = sigma
         self.k = k
-        self.init_lam = init_lam
+        self.init_lam = lam_max
         self.frac_decrease = frac_decrease
-        X, Y, true_weights = generate_random_data(N=N, d=d,
+        X, y, true_weights = generate_random_data(N=N, d=d,
                                                   sigma=sigma, k=k)
         self.X = X
-        self.Y = Y
+        self.y = y
         self.true_weights = true_weights
+        self.lam_max = lam_max
+        reg_path = RegularizationPath(X=self.X, y=self.y,
+                                      lam_max=self.lam_max,
+                                      frac_decrease=self.frac_decrease,
+                                      steps=steps)
+        reg_path.walk_path()
+        self.results_df = reg_path.results_df
 
-    def sklearn_weights(self, lam):
+    def analyze_path(self):
+        # update self.reg_path_results dataframe
+        self.results_df['precision'] = \
+            self.results_df['weights'].apply(self.calc_precision)
+        self.results_df['recall'] = \
+            self.results_df['weights'].apply(self.calc_recall)
 
-        # compute the "correct" answer:
-        #sklearn_weights = sklearn_comparison(X, Y, lam)['weights']
-        alpha = lam/2*self.N
-        clf = linear_model.Lasso(alpha)
-        clf.fit(self.X, self.Y)
-        return clf.coef_
-
-    def loop_lambda(self):
-        # protect the first value of lambda.
-        lam = self.init_lam/self.frac_decrease
-
-        # initialize a dataframe to store results in
-        results = pd.DataFrame()
-        for c in range(0,5):
-            lam = lam*self.frac_decrease
-
-            sklearn_weights = self.sklearn_weights(lam)
-
-            # Compute my (hopefully correct) answer:
-            result = SparseLasso(self.X, self.Y, lam)
-            result.run()
-
-            assert result.w.shape == (self.d, 1) # check before we slice out
-            regression_weights = result.w.toarray()[:,0]
-
-            precision, recall = \
-                self.calc_precision_and_recall(regression_weights)
-
-            one_val = pd.DataFrame({"sigma":[self.sigma], "lam":[lam],
-                                    "precision":[precision],
-                                    "recall":[recall],
-                                    "sklearn weights":[sklearn_weights],
-                                    "my weights":[regression_weights]})
-            results = pd.concat([results, one_val])
-
-            self.results = results
-
-    def calc_precision_and_recall(self, regression_weights, z=0.001):
+    def weight_agreement(self, regression_weights, z):
         # True array for regression weight ~ 0:
         true_weights_array = self.true_weights.reshape(1, self.d)
         abs_weights = np.absolute(true_weights_array)
@@ -209,18 +224,18 @@ class paramSweepRandData():
         reg_weight_array = regression_weights.reshape(1, self.d)
         abs_reg_weights = np.absolute(reg_weight_array)
         nonzero_reg_weights = abs_reg_weights > z
-
         agreement = np.bitwise_and(nonzero_weights, nonzero_reg_weights)
+
+        return (agreement, nonzero_weights, nonzero_reg_weights)
+
+    def calc_precision(self, regression_weights, z=0.001):
+        agreement, nonzero_weights, nonzero_reg_weights = \
+            self.weight_agreement(regression_weights, z)
         # precision = (# correct nonzeros in w^hat)/(num zeros in w^hat)
-        precision = agreement.sum()/nonzero_reg_weights.sum()
+        return agreement.sum() / nonzero_reg_weights.sum()
+
+    def calc_recall(self, regression_weights, z=0.001):
+        agreement, nonzero_weights, nonzero_reg_weights = \
+            self.weight_agreement(regression_weights, z)
         # recall = (number of correct nonzeros in w^hat)/k
-        recall = agreement.sum()/self.k
-        return precision, recall
-
-
-class RegularizationPath:
-    def __init__(self):
-        pass
-
-    def determine_smallest_lambda(self):
-        pass
+        return agreement.sum() / self.k
