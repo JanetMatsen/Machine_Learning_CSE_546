@@ -24,12 +24,16 @@ class SparseLasso:
         self.X = sp.csc_matrix(X)
         self.N, self.d = self.X.shape
         self.y = sp.csc_matrix([y]).T
+        assert self.y.shape == (self.N, 1)
+
         if w is None:
             self.w = sp.csc_matrix(np.ones(self.d)).T
         elif type(w) == np.ndarray:
             self.w = sp.csc_matrix([w]).T
         else:
             assert False, "w is not None or a numpy array."
+        assert self.w.shape == (self.d ,1), \
+            "shape of w is {}".format(self.w.shape)
         self.w0 = w0
         self.lam = lam
         self.delta = delta
@@ -114,7 +118,6 @@ def generate_random_data(N, d, sigma, k=5):
 
     # generate w0
     w0 = 0
-
     # generate X
     X = np.reshape(np.random.normal(0, 1, N*d),
                    newshape = (N, d), order='C')
@@ -122,26 +125,25 @@ def generate_random_data(N, d, sigma, k=5):
 
     # generate w* with the first k elements being nonzero.
     # todo: k is hard coded for now.
-    w = np.zeros((d, 1), dtype=float)
-    w[0] = 10
+    w = np.zeros(d, dtype=float)
+    w[0] = 10.
     w[1] = -10
     w[2] = 10
     w[3] = -10
     w[4] = 10
-    assert w.shape == (d, 1)
+    assert w.shape == (d, )
 
     # generate error
-    e = np.reshape(np.random.normal(0, sigma**2, N), newshape = (N, 1))
-    assert e.shape == (N, 1)
+    e = np.random.normal(0, sigma**2, N)
+    assert e.shape == (N, )
 
     # generate noisy Y
     Y = X.dot(w) + w0 + e
-    Y.reshape(N, 1)
-    assert Y.shape == (N, 1)
+    Y.reshape(N, )
 
     assert X.shape == (N, d)
-    assert Y.shape == (N, 1)
-    assert w.shape == (d, 1)
+    assert Y.shape == (N, )
+    assert w.shape == (d, )
     return X, Y, w
 
 
