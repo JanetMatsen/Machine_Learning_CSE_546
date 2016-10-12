@@ -19,7 +19,6 @@ class SparseLasso:
         :param verbose:
         :param max_iter:
         """
-        # TODO: make w if it is not provided
 
         self.X = sp.csc_matrix(X)
         self.N, self.d = self.X.shape
@@ -69,6 +68,8 @@ class SparseLasso:
             yhat += Xk*(self.w[k, 0] - old_wk)
 
     def run(self):
+        # todo: calculate the a_k array here because it's the same for
+        # each call to self.step()
         for s in range(0, self.max_iter):
             old_objective = self.objective()
             old_w = self.w.copy()
@@ -161,7 +162,7 @@ class RegularizationPath:
         sl = SparseLasso(self.X, self.y, lam, w=w)
         sl.run()
         assert sl.w.shape == (self.d, 1) # check before we slice out
-        return sl.w.toarray()[:,0]
+        return sl.w.toarray()[:,0], sl.w0
 
     def walk_path(self):
         # protect the first value of lambda.
@@ -174,17 +175,15 @@ class RegularizationPath:
             print("Loop {}:solving weights.".format(c+1))
             lam = lam*self.frac_decrease
 
-            w = self.analyze_lam(lam, w=w_prev)
+            w, w0 = self.analyze_lam(lam, w=w_prev)
 
             one_val = pd.DataFrame({"lam":[lam],
-                                    "weights":[w]})
+                                    "weights":[w],
+                                    "w0": [w0]})
             results = pd.concat([results, one_val])
             w_prev = w
 
         self.results_df = results
-
-    def determine_smallest_lambda(self):
-        pass
 
 
 class SyntheticDataRegPath():
@@ -239,3 +238,54 @@ class SyntheticDataRegPath():
             self.weight_agreement(regression_weights, z)
         # recall = (number of correct nonzeros in w^hat)/k
         return agreement.sum() / self.k
+
+
+class RegularizationPathTrainTest:
+    def __init__(self, X_train, y_train, lam_max, X_test, y_test,
+                 steps=10, frac_decrease=0.1):
+        self.X_train = X_train
+        self.y_train = y_train
+        self.lam_max = lam_max
+        self.X_test = X_test
+        self.y_test = y_test
+        self.steps = steps
+        self.frac_decrease = frac_decrease
+        reg_path = RegularizationPath(X=self.X_train, y=self.y_train,
+                                      lam_max=self.lam_max,
+                                      frac_decrease=self.frac_decrease,
+                                      steps=self.steps)
+        reg_path.walk_path()
+        self.results_df = reg_path.results_df
+
+    def analyze_path(self):
+        # df['newcolumn'] = df.apply(lambda x: fxy(x['A'], x['B']), axis=1)
+        self.results_df['validation error'] = \
+            self.results_df.apply(
+                lambda x: self.calc_val_error(x['w'], x['w0']))
+
+        #self.results_df['RMSE (training)'].apply(self.calc_rmse_training)
+        #self.results_df['RMSE (validation)'].apply(self.calc_rmse_test)
+        #self.results_df['# nonzero coefficients'].apply(self.num_nonzero_coefs())
+
+    def calc_val_error(self):
+        # validation error = sum(Xw - w0 - yi)
+        pass
+
+    def calc_rmse(self, X, w, w0, y):
+        # re-use the formula implemented in SparseLasso.
+        # put in a random lam b/c it isn't used.
+        sl = SparseLasso(X, y, lam=0, verbose=False)
+        # store solutions in my Lasso class so I can look @ obj fun
+        sl.w = w
+        sl.w0 = w0
+        return sl.objective()
+
+    def calc_rmse_training(self, w, w0):
+        return self.calc_rmse(x=self.X_train, w=w, w0=w0, y=self.y_train)
+
+    def calc_rmse(self):
+        pass
+
+    def num_nonzero_coefs(self):
+        pass
+
