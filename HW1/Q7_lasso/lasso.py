@@ -6,7 +6,7 @@ import pandas as pd
 
 
 class SparseLasso:
-    def __init__(self, X, y, lam, w=None, w0=0, delta=0.0001,
+    def __init__(self, X, y, lam, w=None, w0=0, delta=0.01,
                  verbose = False, max_iter = 100000):
         """
 
@@ -76,16 +76,22 @@ class SparseLasso:
             old_objective = self.objective()
             old_w = self.w.copy()
             self.step()
-            if(old_objective - self.objective() <= -1e-5):
-                print(old_objective)
-                print(self.objective())
-            assert(old_objective - self.objective() > -1e-5)
+            assert not self.has_increased_significantly(
+                    old_objective, self.objective()), \
+                "objective: {} --> {}".format(old_objective, self.objective())
             if abs(old_w - self.w).max() < self.delta:
                 break
 
         if self.verbose:
             print(self.objective())
             print(self.w)
+
+    @staticmethod
+    def has_increased_significantly(old, new, sig_fig=10**(-4)):
+       """
+       Return if new is larger than old in the `sig_fig` significant digit.
+       """
+       return(new > old and np.log10(1.-old/new) > -sig_fig)
 
     @staticmethod
     def l1_norm(v):
