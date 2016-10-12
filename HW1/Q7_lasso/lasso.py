@@ -165,7 +165,7 @@ class paramSweepRandData():
 
         # compute the "correct" answer:
         #sklearn_weights = sklearn_comparison(X, Y, lam)['weights']
-        alpha = lam/self.X.shape[0]
+        alpha = lam/2*self.N
         clf = linear_model.Lasso(alpha)
         clf.fit(self.X, self.Y)
         return clf.coef_
@@ -183,6 +183,8 @@ class paramSweepRandData():
 
             # Compute my (hopefully correct) answer:
             result = SparseLasso(self.X, self.Y, lam)
+            result.run()
+
             assert result.w.shape == (self.d, 1) # check before we slice out
             regression_weights = result.w.toarray()[:,0]
 
