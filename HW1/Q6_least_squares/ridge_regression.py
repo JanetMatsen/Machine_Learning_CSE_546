@@ -3,37 +3,41 @@ import pandas as pd
 import scipy.sparse as sp
 import scipy.sparse.linalg as splin
 
+
 class Ridge:
     def __init__(self, X, y, lam):
 
         assert type(X) == sp.csc_matrix or type(X) == sp.csr_matrix
         assert type(lam*1.0) == float
-        #assert type(y) == np.ndarray
         assert type(y) == sp.csr_matrix or type(y) == sp.csc_matrix
 
         self.X = X
         self.y = y
         self.lam = lam
-        #self.cutoff = cutoff
+        self.w = None
 
     def solve(self):
 
-        D = self.X.shape[1]  # d = number of features/columns
+        d = self.X.shape[1]  # d = number of features/columns
         # find lambda*I_D + X^T*X
-        piece_to_invert = sp.identity(D)*self.lam + self.X.T.dot(self.X)
+        piece_to_invert = sp.identity(d)*self.lam + self.X.T.dot(self.X)
 
-        #inverted_piece = piece_to_invert.linalg.inv()
         inverted_piece = splin.inv(piece_to_invert)
 
         solution = inverted_piece.dot(self.X.T)
         solution = solution.dot(self.y)
 
         self.w = solution
-        self.y_preds = self.X.dot(self.w).toarray()[:, 0]
 
-    def calc_square_loss(self):
-        differences = self.y - self.y_preds
-        self.square_loss = None
+    def sse(self):
+        # sse = RSS
+        error_v = self.X.dot(self.w) - self.y
+        return self.extract_scalar(error_v.T.dot(error_v))
+
+    @staticmethod
+    def extract_scalar(m):
+        assert(m.shape == (1, 1))
+        return m[0, 0]
 
 
 class RidgeRegularizationPath:
@@ -48,11 +52,16 @@ class RidgeRegularizationPath:
         self.val_X = val_X
         self.val_y = val_y
 
-    def train_with_lam(self, lam, w):
+    def train_with_lam(self, lam):
         rr = Ridge(self.train_X, self.train_y, lam=lam)
         rr.solve()
+        sse_train = rr.sse()
+        # replace the y values with the validation y and get the val sss
+        rr.X = self.val_X
+        rr.y = self.val_y
+        sse_val = rr.sse()
         assert rr.w.shape == (self.train_d, 1) # check before we slice out
-        return rr.w.toarray()[:,0]
+        return rr.w.toarray()[:,0], sse_train, sse_val
 
     def walk_path(self):
         # protect the first value of lambda.
@@ -62,14 +71,17 @@ class RidgeRegularizationPath:
         # initialize a dataframe to store results in
         results = pd.DataFrame()
         for c in range(0, self.steps):
-            print("Loop {}: solving weights.".format(c+1))
             lam = lam*self.frac_decrease
+            print("Loop {}: solving weights.  Lambda = {}".format(c+1, lam))
 
-            w = self.train_with_lam(lam, w=w_prev)
+            w, sse_train, sse_val = self.train_with_lam(lam)
 
             one_val = pd.DataFrame({"lam":[lam],
-                                    "weights":[w]})
+                                    "weights":[w],
+                                    "SSE (training)": [sse_train],
+                                    "SSE (validaton)": [sse_val]})
             results = pd.concat([results, one_val])
             w_prev = w
 
         self.results_df = results
+
