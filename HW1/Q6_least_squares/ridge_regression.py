@@ -66,7 +66,6 @@ class RidgeRegularizationPath:
     def walk_path(self):
         # protect the first value of lambda.
         lam = self.lam_max/self.frac_decrease
-        w_prev = None
 
         # initialize a dataframe to store results in
         results = pd.DataFrame()
@@ -84,4 +83,3 @@ class RidgeRegularizationPath:
             w_prev = w
 
         self.results_df = results
-
