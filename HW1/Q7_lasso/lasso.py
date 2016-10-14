@@ -165,16 +165,17 @@ def generate_random_data(N, d, sigma, k=5):
 
 
 class RegularizationPath:
-    def __init__(self, X, y, lam_max, frac_decrease, steps):
+    def __init__(self, X, y, lam_max, frac_decrease, steps, delta):
         self.X = X
         self.y = y
         self.N, self.d = self.X.shape
         self.lam_max = lam_max
         self.frac_decrease = frac_decrease
         self.steps = steps
+        self.delta = delta
 
     def analyze_lam(self, lam, w):
-        sl = SparseLasso(self.X, self.y, lam, w=w)
+        sl = SparseLasso(self.X, self.y, lam, w=w, delta=self.delta)
         sl.run()
         assert sl.w.shape == (self.d, 1) # check before we slice out
         return sl.w.toarray()[:,0], sl.w0
@@ -257,7 +258,7 @@ class SyntheticDataRegPath():
 
 class RegularizationPathTrainTest:
     def __init__(self, X_train, y_train, lam_max, X_val, y_val,
-                 steps=10, frac_decrease=0.1):
+                 steps=10, frac_decrease=0.1, delta=0.01):
         self.X_train = X_train
         self.y_train = y_train
         self.lam_max = lam_max
@@ -268,7 +269,8 @@ class RegularizationPathTrainTest:
         reg_path = RegularizationPath(X=self.X_train, y=self.y_train,
                                       lam_max=self.lam_max,
                                       frac_decrease=self.frac_decrease,
-                                      steps=self.steps)
+                                      steps=self.steps,
+                                      delta=delta)
         reg_path.walk_path()
         self.results_df = reg_path.results_df
 
