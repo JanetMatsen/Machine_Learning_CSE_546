@@ -2,6 +2,7 @@ import numpy as np
 import scipy.sparse as sp
 # analyze my solution by comparing objective functions
 from sklearn import linear_model
+import sys
 import pandas as pd
 
 
@@ -21,31 +22,35 @@ class SparseLasso:
         """
 
         self.X = sp.csc_matrix(X)
+        self.dense_X = X
         self.N, self.d = self.X.shape
-        self.y = sp.csc_matrix([y]).T
-        assert self.y.shape == (self.N, 1)
+        self.y = y
+        assert self.y.shape == (self.N, )
 
         if w is None:
-            self.w = sp.csc_matrix(np.ones(self.d)).T
+            self.w = np.ones(self.d)
         elif type(w) == np.ndarray:
-            self.w = sp.csc_matrix([w]).T
+            self.w = w
         else:
             assert False, "w is not None or a numpy array."
-        assert self.w.shape == (self.d ,1), \
+        assert self.w.shape == (self.d ,), \
             "shape of w is {}".format(self.w.shape)
         self.w0 = w0
         self.lam = lam
         self.delta = delta
         self.verbose = verbose
         self.max_iter = max_iter
+        # a is the column-wise dot with itself
+        self.a = np.linalg.norm(X, axis=0)
+        self.a = self.a * self.a
+        self.a *= 2
 
-    def w0_array(self):
-        return np.ones((self.N, 1))*self.w0
 
     def sse(self):
         # SSE is sum of residuals squared
-        error_v = self.X.dot(self.w) + self.w0_array() - self.y
-        return self.extract_scalar(error_v.T.dot(error_v))
+        error_v = self.X.dot(self.w) + self.w0 - self.y
+        return error_v.T.dot(error_v)
+
 
     def rmse(self):
         # RMSE = root mean square error
@@ -53,35 +58,36 @@ class SparseLasso:
         mse = self.sse()/self.N  # /N for the M in RMSE
         return mse**0.5 # **0.5 for the R in the RMSE
 
+
     def objective(self):
-        return self.sse() + self.lam * self.l1_norm(self.w)
+        return  self.sse() + self.lam*np.linalg.norm(self.w,1)
+
 
     def step(self):
-        yhat = self.X.dot(self.w) + self.w0_array()
+        yhat = self.X.dot(self.w) + self.w0
         old_w0 = self.w0
         self.w0 += (self.y - yhat).sum()/self.N
         yhat += self.w0 - old_w0
 
         for k in range(0, self.d):
-            Xk = self.X[:, k]
-            ak = 2 * self.extract_scalar(Xk.T.dot(Xk))
-            ck = 2 * \
-                self.extract_scalar(Xk.T.dot(self.y - yhat + Xk*self.w[k, 0]))
-            old_wk = self.w[k, 0]
+            # Un-clever version:
+            # ck = 2 * self.extract_scalar(Xk.T.dot(self.y - yhat + Xk*self.w[k, 0]))
+            ck = 2 * self.X[:, k].T.dot(self.y - yhat)[0] + self.a[k]*self.w[k]
+            old_wk = self.w[k]
             if ck < - self.lam:
-                self.w[k, 0] = (ck + self.lam)/ak
+                self.w[k] = (ck + self.lam)/self.a[k]
             elif ck > self.lam:
-                self.w[k, 0] = (ck - self.lam)/ak
+                self.w[k] = (ck - self.lam)/self.a[k]
             else:
-                self.w[k, 0] = 0.
-            yhat += Xk*(self.w[k, 0] - old_wk)
+                self.w[k] = 0.
+            yhat += self.dense_X[:,k]*(self.w[k] - old_wk)
+
 
     def run(self):
-        # todo: calculate the a_k array here because it's the same for
-        # each call to self.step()
         for s in range(0, self.max_iter):
             old_objective = self.objective()
             old_w = self.w.copy()
+            sys.stdout.write(".")
             self.step()
             assert not self.has_increased_significantly(
                     old_objective, self.objective()), \
@@ -93,25 +99,13 @@ class SparseLasso:
             print(self.objective())
             print(self.w)
 
+
     @staticmethod
     def has_increased_significantly(old, new, sig_fig=10**(-4)):
        """
        Return if new is larger than old in the `sig_fig` significant digit.
        """
        return(new > old and np.log10(1.-old/new) > -sig_fig)
-
-    @staticmethod
-    def l1_norm(v):
-        assert(v.shape[1] == 1)
-        return abs(v).sum()
-
-    @staticmethod
-    def extract_scalar(m):
-        assert(m.shape == (1,1))
-        return m[0,0]
-
-    def calc_yhat(self):
-        return self.X.dot(self.w) + self.w0_array()
 
 
 def sklearn_comparison(X, y, lam, sparse = False):
@@ -120,7 +114,7 @@ def sklearn_comparison(X, y, lam, sparse = False):
     clf.fit(X, y)
     # store solutions in my Lasso class so I can look @ obj fun
     skl_lasso = SparseLasso(X, y, lam, w0=0, verbose = False)
-    skl_lasso.w = sp.csc_matrix(clf.coef_).T
+    skl_lasso.w = clf.coef_
     skl_lasso.w0 = clf.intercept_
 
     skl_objective_fun_value = skl_lasso.objective()
@@ -177,8 +171,9 @@ class RegularizationPath:
     def analyze_lam(self, lam, w):
         sl = SparseLasso(self.X, self.y, lam, w=w, delta=self.delta)
         sl.run()
-        assert sl.w.shape == (self.d, 1) # check before we slice out
-        return sl.w.toarray()[:,0], sl.w0
+        print("")
+        assert sl.w.shape == (self.d, )
+        return sl.w.copy(), sl.w0
 
     def walk_path(self):
         # protect the first value of lambda.
@@ -199,11 +194,12 @@ class RegularizationPath:
             results = pd.concat([results, one_val])
             w_prev = w
 
-        self.results_df = results
+        self.results_df = results.reset_index(drop=True)
 
 
 class SyntheticDataRegPath():
-    def __init__(self, N, d, sigma, lam_max, frac_decrease, k=5, steps=10):
+    def __init__(self, N, d, sigma, lam_max, frac_decrease, delta,
+                 k=5, steps=10):
         self.N = N
         self.d = d
         self.sigma = sigma
@@ -219,7 +215,7 @@ class SyntheticDataRegPath():
         reg_path = RegularizationPath(X=self.X, y=self.y,
                                       lam_max=self.lam_max,
                                       frac_decrease=self.frac_decrease,
-                                      steps=steps)
+                                      steps=steps, delta=delta)
         reg_path.walk_path()
         self.results_df = reg_path.results_df
 
@@ -290,7 +286,7 @@ class RegularizationPathTrainTest:
         # put in a random lam b/c it isn't used.
         sl = SparseLasso(X, y, lam=0, verbose=False)
         # store solutions in my Lasso class so I can look @ obj fun
-        sl.w = w.reshape(w.shape[0], 1)
+        sl.w = w
         sl.w0 = w0
         return sl.rmse()
 
