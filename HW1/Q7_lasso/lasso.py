@@ -248,7 +248,7 @@ class SyntheticDataRegPath():
 
 
 class RegularizationPathTrainTest:
-    def __init__(self, X_train, y_train, lam_max, X_val, y_val,
+    def __init__(self, X_train, y_train, lam_max, X_val, y_val, feature_names,
                  steps=10, frac_decrease=0.1, delta=0.01):
         self.X_train = X_train
         self.y_train = y_train
@@ -264,6 +264,7 @@ class RegularizationPathTrainTest:
                                       delta=delta)
         reg_path.walk_path()
         self.results_df = reg_path.results_df
+        self.feature_names = feature_names
 
     def analyze_path(self):
         self.results_df['RMSE (training)'] = \
@@ -275,6 +276,9 @@ class RegularizationPathTrainTest:
 
         self.results_df['# nonzero coefficients'] = \
             self.results_df['weights'].apply(self.num_nonzero_coefs)
+
+        self.results_df['top_features'] = \
+            self.results_df['weights'].apply(self.top_features)
 
     def calc_rmse(self, X, w, w0, y):
         # re-use the formula implemented in SparseLasso.
@@ -294,4 +298,11 @@ class RegularizationPathTrainTest:
     def num_nonzero_coefs(self, w, z=0.001):
         nonzero_weights = np.absolute(w) > z
         return nonzero_weights.sum()
+
+    def top_features(self, w, n_features=10):
+        w = w.copy()
+        feature_names = self.feature_names
+        max_vals = w.argsort()[-n_features:]  # get the top n_f features.  (They are at the back of the list.)
+        print(np.argsort(w[max_vals]))
+        return feature_names[max_vals].tolist()
 
