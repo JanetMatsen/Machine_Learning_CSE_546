@@ -45,12 +45,10 @@ class SparseLasso:
         self.a = self.a * self.a
         self.a *= 2
 
-
     def sse(self):
         # SSE is sum of residuals squared
         error_v = self.X.dot(self.w) + self.w0 - self.y
         return error_v.T.dot(error_v)
-
 
     def rmse(self):
         # RMSE = root mean square error
@@ -58,10 +56,8 @@ class SparseLasso:
         mse = self.sse()/self.N  # /N for the M in RMSE
         return mse**0.5 # **0.5 for the R in the RMSE
 
-
     def objective(self):
         return  self.sse() + self.lam*np.linalg.norm(self.w,1)
-
 
     def step(self):
         yhat = self.X.dot(self.w) + self.w0
@@ -81,7 +77,6 @@ class SparseLasso:
             else:
                 self.w[k] = 0.
             yhat += self.dense_X[:,k]*(self.w[k] - old_wk)
-
 
     def run(self):
         for s in range(0, self.max_iter):
@@ -192,7 +187,7 @@ class RegularizationPath:
                                     "weights":[w],
                                     "w0": [w0]})
             results = pd.concat([results, one_val])
-            w_prev = w
+            w_prev = w.copy()
 
         self.results_df = results.reset_index(drop=True)
 
@@ -276,7 +271,7 @@ class RegularizationPathTrainTest:
                 lambda x: self.rmse_train(x['weights'], x['w0']), axis=1)
         self.results_df['RMSE (validation)'] = \
             self.results_df.apply(
-                lambda x: self.rmse_test(x['weights'], x['w0']), axis=1)
+                lambda x: self.rmse_val(x['weights'], x['w0']), axis=1)
 
         self.results_df['# nonzero coefficients'] = \
             self.results_df['weights'].apply(self.num_nonzero_coefs)
@@ -286,14 +281,14 @@ class RegularizationPathTrainTest:
         # put in a random lam b/c it isn't used.
         sl = SparseLasso(X, y, lam=0, verbose=False)
         # store solutions in my Lasso class so I can look @ obj fun
-        sl.w = w
+        sl.w = w.copy()
         sl.w0 = w0
         return sl.rmse()
 
     def rmse_train(self, w, w0):
         return self.calc_rmse(X=self.X_train, w=w, w0=w0, y=self.y_train)
 
-    def rmse_test(self, w, w0):
+    def rmse_val(self, w, w0):
         return self.calc_rmse(X=self.X_val, w=w, w0=w0, y=self.y_val)
 
     def num_nonzero_coefs(self, w, z=0.001):
