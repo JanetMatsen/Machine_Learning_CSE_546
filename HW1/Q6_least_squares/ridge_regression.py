@@ -12,6 +12,7 @@ class Ridge:
         assert type(y) == sp.csr_matrix or type(y) == sp.csc_matrix
 
         self.X = X
+        self.N = X.shape[0]
         self.y = y
         self.lam = lam
         self.w = None
@@ -33,6 +34,9 @@ class Ridge:
         # sse = RSS
         error_v = self.X.dot(self.w) - self.y
         return self.extract_scalar(error_v.T.dot(error_v))
+
+    def rmse(self):
+        return(self.sse()/self.N)**0.5
 
     @staticmethod
     def extract_scalar(m):
@@ -80,6 +84,5 @@ class RidgeRegularizationPath:
                                     "SSE (training)": [sse_train],
                                     "SSE (validaton)": [sse_val]})
             results = pd.concat([results, one_val])
-            w_prev = w
 
         self.results_df = results
