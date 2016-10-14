@@ -22,7 +22,6 @@ class SparseLasso:
         """
 
         self.X = sp.csc_matrix(X)
-        self.dense_X = X
         self.N, self.d = self.X.shape
         self.y = y
         assert self.y.shape == (self.N, )
@@ -40,10 +39,11 @@ class SparseLasso:
         self.delta = delta
         self.verbose = verbose
         self.max_iter = max_iter
-        # a is the column-wise dot with itself
-        self.a = np.linalg.norm(X, axis=0)
-        self.a = self.a * self.a
-        self.a *= 2
+        # a is twice the column-wise dot of X with itself
+        self.a = np.zeros(self.d)
+        for k in range(0, self.d):
+            self.a[k] = 2 * (self.X[:, k].T.dot(self.X[:, k]))[0,0]
+        self.XT = sp.csr_matrix(X.T)
 
     def sse(self):
         # SSE is sum of residuals squared
@@ -76,7 +76,8 @@ class SparseLasso:
                 self.w[k] = (ck - self.lam)/self.a[k]
             else:
                 self.w[k] = 0.
-            yhat += self.dense_X[:,k]*(self.w[k] - old_wk)
+            yhat += (self.XT[k,:]*(self.w[k] - old_wk)).toarray()[0]
+
 
     def run(self):
         for s in range(0, self.max_iter):
@@ -154,7 +155,8 @@ def generate_random_data(N, d, sigma, k=5):
 
 
 class RegularizationPath:
-    def __init__(self, X, y, lam_max, frac_decrease, steps, delta):
+    def __init__(self, X, y, lam_max, frac_decrease, steps, delta,
+                 initial_w=None):
         self.X = X
         self.y = y
         self.N, self.d = self.X.shape
@@ -162,6 +164,7 @@ class RegularizationPath:
         self.frac_decrease = frac_decrease
         self.steps = steps
         self.delta = delta
+        self.initial_w = initial_w
 
     def analyze_lam(self, lam, w):
         sl = SparseLasso(self.X, self.y, lam, w=w, delta=self.delta)
@@ -173,13 +176,17 @@ class RegularizationPath:
     def walk_path(self):
         # protect the first value of lambda.
         lam = self.lam_max/self.frac_decrease
-        w_prev = None
+        if self.initial_w is None:
+            w_prev = self.initial_w
+        else:
+            w_prev = None
 
         # initialize a dataframe to store results in
         results = pd.DataFrame()
         for c in range(0, self.steps):
-            print("Loop {}: solving weights.".format(c+1))
             lam = lam*self.frac_decrease
+            print("Loop {}: solving weights for lambda = {}.".format(c+1, lam))
+
 
             w, w0 = self.analyze_lam(lam, w=w_prev)
 
@@ -248,8 +255,10 @@ class SyntheticDataRegPath():
 
 
 class RegularizationPathTrainTest:
-    def __init__(self, X_train, y_train, lam_max, X_val, y_val, feature_names,
-                 steps=10, frac_decrease=0.1, delta=0.01):
+    def __init__(self, X_train, y_train, lam_max,
+                 X_val, y_val, feature_names,
+                 steps=10, frac_decrease=0.1, delta=0.01,
+                 initial_w=None):
         self.X_train = X_train
         self.y_train = y_train
         self.lam_max = lam_max
@@ -261,6 +270,7 @@ class RegularizationPathTrainTest:
                                       lam_max=self.lam_max,
                                       frac_decrease=self.frac_decrease,
                                       steps=self.steps,
+                                      initial_w=initial_w,
                                       delta=delta)
         reg_path.walk_path()
         self.results_df = reg_path.results_df
@@ -301,8 +311,10 @@ class RegularizationPathTrainTest:
 
     def top_features(self, w, n_features=10):
         w = w.copy()
+        abs_w = np.absolute(w.copy())
         feature_names = self.feature_names
-        max_vals = w.argsort()[-n_features:]  # get the top n_f features.  (They are at the back of the list.)
-        print(np.argsort(w[max_vals]))
-        return feature_names[max_vals].tolist()
+        best_indices = abs_w.argsort()[-n_features:][::-1]   # get the top n_f features.  (They are at the back of the list.)
+        print(np.argsort(best_indices))
+        print(np.argsort(w[best_indices]))
+        return feature_names[best_indices].tolist(), w[best_indices]
 
