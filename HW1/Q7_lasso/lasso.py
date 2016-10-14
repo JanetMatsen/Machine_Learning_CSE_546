@@ -42,12 +42,19 @@ class SparseLasso:
     def w0_array(self):
         return np.ones((self.N, 1))*self.w0
 
-    def rmse(self):
+    def sse(self):
+        # SSE is sum of residuals squared
         error_v = self.X.dot(self.w) + self.w0_array() - self.y
         return self.extract_scalar(error_v.T.dot(error_v))
 
+    def rmse(self):
+        # RMSE = root mean square error
+        # the square root of the variance of the residuals
+        mse = self.sse()/self.N  # /N for the M in RMSE
+        return mse**0.5 # **0.5 for the R in the RMSE
+
     def objective(self):
-        return  self.rmse() + self.lam*self.l1_norm(self.w)
+        return self.sse() + self.lam * self.l1_norm(self.w)
 
     def step(self):
         yhat = self.X.dot(self.w) + self.w0_array()
@@ -144,7 +151,7 @@ def generate_random_data(N, d, sigma, k=5):
     assert w.shape == (d, )
 
     # generate error
-    e = np.random.normal(0, sigma**2, N)
+    e = np.random.normal(0, sigma, N)
     assert e.shape == (N, )
 
     # generate noisy Y
@@ -180,7 +187,7 @@ class RegularizationPath:
         # initialize a dataframe to store results in
         results = pd.DataFrame()
         for c in range(0, self.steps):
-            print("Loop {}:solving weights.".format(c+1))
+            print("Loop {}: solving weights.".format(c+1))
             lam = lam*self.frac_decrease
 
             w, w0 = self.analyze_lam(lam, w=w_prev)
@@ -231,9 +238,9 @@ class SyntheticDataRegPath():
         reg_weight_array = regression_weights.reshape(1, self.d)
         abs_reg_weights = np.absolute(reg_weight_array)
         nonzero_reg_weights = abs_reg_weights > z
-        agreement = np.bitwise_and(nonzero_weights, nonzero_reg_weights)
+        disagreement = np.bitwise_xor(nonzero_weights, nonzero_reg_weights)
 
-        return (agreement, nonzero_weights, nonzero_reg_weights)
+        return (disagreement, nonzero_weights, nonzero_reg_weights)
 
     def calc_precision(self, regression_weights, z=0.001):
         agreement, nonzero_weights, nonzero_reg_weights = \
