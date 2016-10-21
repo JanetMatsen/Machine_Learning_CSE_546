@@ -1,4 +1,6 @@
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 
 class ClassificationBase:
@@ -28,6 +30,9 @@ class ClassificationBase:
         else:
             self.w0 = w0
 
+        # Filled in as the models are fit.
+        self.results = pd.DataFrame()
+
     def pred_to_01_loss(self, class_calls):
         """
         + one point for every class that's correctly called.
@@ -36,6 +41,36 @@ class ClassificationBase:
 
     #def pred_to_normalized_01_loss(self, class_calls):
     #    return self.loss_01(class_calls)/self.N
+
+    def plot_ys(self, x,y1, y2=None, ylabel=None):
+        assert self.results is not None
+
+        fig, ax = plt.subplots(1, 1, figsize=(4, 3))
+        colors = ['c','b']
+        plt.semilogx(self.results[x], self.results[y1],
+                     linestyle='--', marker='o',
+                     color=colors[1])
+        if y2:
+            plt.semilogx(self.results[x], self.results[y2],
+                         linestyle='--', marker='o',
+                         color=colors[3])
+        plt.legend(loc = 'best')
+        plt.xlabel(x)
+        if ylabel:
+            plt.ylabel(ylabel)
+        else:
+            pass
+        return fig
+
+    def plot_01_loss(self, ylabel = "fractional 0/1 loss", filename=None):
+        fig = self.plot_ys(x='iteration', y1="(0/1 loss)/N")
+        if filename:
+            fig.savefig(filename + '.pdf')
+
+    def plot_log_loss(self, ylabel = "negative(log loss)", filename=None):
+        fig = self.plot_ys(x='iteration', y1="-(log loss)")
+        if filename:
+            fig.savefig(filename + '.pdf')
 
     def step(self):
         pass

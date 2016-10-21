@@ -81,7 +81,6 @@ class LogisticRegression(ClassificationBase):
         self.nu = self.nu*0.99 # may want to scale w/ batch size.
 
     def run(self):
-        results = pd.DataFrame()
 
         # Step until converged
         for s in range(1, self.max_iter+1):
@@ -100,14 +99,13 @@ class LogisticRegression(ClassificationBase):
                                     "(0/1 loss)/N": [new_loss_normalized],
                                     "-(log loss)": [-self.log_loss()],
                                     "log loss": [self.log_loss()]})
-            results = pd.concat([results, one_val])
+            self.results = pd.concat([self.results, one_val])
 
             assert not self.has_increased_significantly(
                 old_loss_normalized, new_loss),\
                 "Normalized loss: {} --> {}".format(old_loss_normalized, new_loss)
             if abs(old_w - self.w).max() < self.delta:
                 break
-        self.results = results
 
     @staticmethod
     def has_increased_significantly(old, new, sig_fig=10**(-4)):
@@ -115,39 +113,3 @@ class LogisticRegression(ClassificationBase):
        Return if new is larger than old in the `sig_fig` significant digit.
        """
        return(new > old and np.log10(1.-old/new) > -sig_fig)
-
-    def plot_ys(self, x,y1, y2=None, ylabel=None):
-        assert self.results is not None
-
-        fig, ax = plt.subplots(1, 1, figsize=(4, 3))
-        colors = ['c','b']
-        plt.semilogx(self.results[x], self.results[y1],
-                     linestyle='--', marker='o',
-                     color=colors[1])
-        if y2:
-            plt.semilogx(self.results[x], self.results[y2],
-                         linestyle='--', marker='o',
-                         color=colors[3])
-        plt.legend(loc = 'best')
-        plt.xlabel(x)
-        if ylabel:
-            plt.ylabel(ylabel)
-        else:
-            pass
-        return fig
-
-    def plot_01_loss(self, ylabel = "fractional 0/1 loss", filename=None):
-        fig = self.plot_ys(x='iteration', y1="(0/1 loss)/N")
-        if filename:
-            fig.savefig(filename + '.pdf')
-
-    def plot_log_loss(self, ylabel = "negative(log loss)", filename=None):
-        fig = self.plot_ys(x='iteration', y1="-(log loss)")
-        if filename:
-            fig.savefig(filename + '.pdf')
-
-        #, y2='-(log loss)"')
-        #return fig
-
-
-
