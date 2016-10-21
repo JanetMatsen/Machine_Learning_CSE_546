@@ -23,16 +23,19 @@ class ClassificationBase:
             assert False, "w is not None or a numpy array."
         assert self.w.shape == (self.d ,), \
             "shape of w is {}".format(self.w.shape)
-        self.w0 = w0
+        if w0 is None:
+            self.w0=0
+        else:
+            self.w0 = w0
 
-    def loss_01(self, class_calls):
+    def pred_to_01_loss(self, class_calls):
         """
         + one point for every class that's correctly called.
         """
         return np.equal(self.y, class_calls).sum()
 
-    def loss_01_normalized(self, class_calls):
-        return self.loss_01(class_calls)/self.N
+    #def pred_to_normalized_01_loss(self, class_calls):
+    #    return self.loss_01(class_calls)/self.N
 
     def step(self):
         pass
