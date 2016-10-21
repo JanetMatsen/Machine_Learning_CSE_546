@@ -5,6 +5,7 @@ import scipy.sparse.linalg as splin
 
 
 class Ridge:
+    # todo: inherit from RegressionBase
     def __init__(self, X, y, lam):
 
         assert type(X) == sp.csc_matrix or type(X) == sp.csr_matrix
