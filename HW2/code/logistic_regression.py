@@ -2,6 +2,8 @@ import numpy as np
 import sys
 import pandas as pd
 
+import matplotlib.pyplot as plt
+
 from classification_base import ClassificationBase
 
 
@@ -28,7 +30,7 @@ class LogisticRegression(ClassificationBase):
         This quantity is labeled q in my planning.
         :return: vetor of weights applied to X.
         """
-        w0_array = np.ones(self.d)*self.w0
+        w0_array = np.ones(self.N)*self.w0
         return w0_array + self.X.dot(self.w)
 
     def probability_array(self):
@@ -113,4 +115,39 @@ class LogisticRegression(ClassificationBase):
        Return if new is larger than old in the `sig_fig` significant digit.
        """
        return(new > old and np.log10(1.-old/new) > -sig_fig)
+
+    def plot_ys(self, x,y1, y2=None, ylabel=None):
+        assert self.results is not None
+
+        fig, ax = plt.subplots(1, 1, figsize=(4, 3))
+        colors = ['c','b']
+        plt.semilogx(self.results[x], self.results[y1],
+                     linestyle='--', marker='o',
+                     color=colors[1])
+        if y2:
+            plt.semilogx(self.results[x], self.results[y2],
+                         linestyle='--', marker='o',
+                         color=colors[3])
+        plt.legend(loc = 'best')
+        plt.xlabel(x)
+        if ylabel:
+            plt.ylabel(ylabel)
+        else:
+            pass
+        return fig
+
+    def plot_01_loss(self, ylabel = "fractional 0/1 loss", filename=None):
+        fig = self.plot_ys(x='iteration', y1="(0/1 loss)/N")
+        if filename:
+            fig.savefig(filename + '.pdf')
+
+    def plot_log_loss(self, ylabel = "negative(log loss)", filename=None):
+        fig = self.plot_ys(x='iteration', y1="-(log loss)")
+        if filename:
+            fig.savefig(filename + '.pdf')
+
+        #, y2='-(log loss)"')
+        #return fig
+
+
 
