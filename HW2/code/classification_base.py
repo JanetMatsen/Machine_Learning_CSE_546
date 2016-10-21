@@ -13,7 +13,7 @@ class ClassificationBase:
         assert self.y.shape == (self.N, )
 
         # number of classes may be 2, or more than 2.
-        self.C = 
+        self.C = np.unique(y).shape[0]
 
         if w is None:
             self.w = np.ones(self.d)
@@ -29,6 +29,10 @@ class ClassificationBase:
         """
         + one point for every class that's correctly called.
         """
+        return np.equal(self.y, class_calls).sum()
+
+    def loss_01_normalized(self, class_calls):
+        return self.loss_01(class_calls)/self.N
 
     def step(self):
         pass
