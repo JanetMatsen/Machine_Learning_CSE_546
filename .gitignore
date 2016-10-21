@@ -1,4 +1,5 @@
-*.idea*
+*trash*
+*.idea* 
 *.pdf
 *.png
 
