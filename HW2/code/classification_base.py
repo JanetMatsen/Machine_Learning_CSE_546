@@ -32,7 +32,7 @@ class ClassificationBase:
         """
         + one point for every class that's correctly called.
         """
-        return np.equal(self.y, class_calls).sum()
+        return self.N - np.equal(self.y, class_calls).sum()
 
     #def pred_to_normalized_01_loss(self, class_calls):
     #    return self.loss_01(class_calls)/self.N

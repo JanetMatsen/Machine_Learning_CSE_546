@@ -44,10 +44,21 @@ class LogisticRegression(ClassificationBase):
         Produce an array of class predictions
         """
         probabilities = self.probability_array()
-        preds = probabilities > threshold
+        classes = np.zeros(self.N)
+        classes[probabilities > threshold] = 1
+        return classes
 
     def loss_01(self):
         return self.pred_to_01_loss(self.predict())
+
+    def log_loss(self):
+        probabilities = self.probability_array().copy()
+        # need to flip the probabilities for p < 0.5 with this binary case.
+        # 1 - old_val is same as oldval*-1 + 1.  Do in 2 steps:
+        probabilities[np.equal(0, self.y)] *= -1
+        probabilities[np.equal(0, self.y)] += 1
+        # when multiclass: np.amax(probabilities, 1)
+        return np.log(probabilities).sum()
 
     def step(self):
         """
@@ -56,19 +67,16 @@ class LogisticRegression(ClassificationBase):
         P = self.probability_array()
         E = self.y - P  # prediction error (0 to 1)
 
-        self.w0 += (self.nu/self.N)*E.sum()
+        self.w0 += (self.nu/self.N**0.5)*E.sum()
         assert self.w0.shape == ()
         assert isinstance(self.w0, np.float64)
 
-        self.w += (self.nu/self.N)*(-self.lam*self.w + self.X.T.dot(E))
+        self.w += (self.nu/self.N**0.5)*(-self.lam*self.w + self.X.T.dot(E))
         assert self.w.shape == (self.d ,), \
             "shape of w is {}".format(self.w.shape)
 
     def shrink_nu(self):
         self.nu = self.nu*0.99 # may want to scale w/ batch size.
-
-    def log_loss(self):
-        pass
 
     def run(self):
         results = pd.DataFrame()
@@ -85,8 +93,10 @@ class LogisticRegression(ClassificationBase):
             new_loss = self.loss_01()
             new_loss_normalized = self.loss_01()/self.N
             one_val = pd.DataFrame({"iteration": [s],
+                                    #"probability 1": [self.probability_array()],
                                     "0/1 loss": [new_loss],
                                     "(0/1 loss)/N": [new_loss_normalized],
+                                    "-(log loss)": [-self.log_loss()],
                                     "log loss": [self.log_loss()]})
             results = pd.concat([results, one_val])
 
