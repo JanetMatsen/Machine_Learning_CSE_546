@@ -7,28 +7,36 @@ class ClassificationBase:
     """
     Methods common to classification.
     """
-    def __init__(self, X, y, w=None, w0=0):
+    def __init__(self, X, y, W=None, W0=0):
 
         self.X = X #sp.csc_matrix(X)
         self.N, self.d = self.X.shape
         self.y = y
-        assert self.y.shape == (self.N, )
+        if self.y.shape == (self.N, ):
+            self.y = np.reshape(self.y, newshape=(self.N, 1))
 
         # number of classes may be 2, or more than 2.
         self.C = np.unique(y).shape[0]
 
-        if w is None:
-            self.w = np.ones(self.d)
-        elif type(w) == np.ndarray:
-            self.w = w
+        # Sort the y values into columns.  1 if the Y was on for that column.
+        Y = np.zeros(shape=(self.N, self.C))
+        Y[np.arange(len(y)), y] = 1
+        self.Y = Y
+        assert self.y.shape == (self.N, 1)
+
+        if W is None:
+            self.W = np.zeros(shape=(self.d, self.C))
+        elif type(W) == np.ndarray:
+            self.W = W
         else:
-            assert False, "w is not None or a numpy array."
-        assert self.w.shape == (self.d ,), \
-            "shape of w is {}".format(self.w.shape)
-        if w0 is None:
-            self.w0=0
+            assert False, "W is not None or a numpy array."
+        assert self.W.shape == (self.d ,self.C), \
+            "shape of W is {}".format(self.W.shape)
+        if W0 is None:
+            self.W0=np.zeros(shape=(1, self.C))
         else:
-            self.w0 = w0
+            self.W0 = W0
+            assert self.W0.shape == (1, self.C)
 
         # Filled in as the models are fit.
         self.results = pd.DataFrame()
@@ -37,7 +45,10 @@ class ClassificationBase:
         """
         + one point for every class that's correctly called.
         """
-        return self.N - np.equal(self.y, class_calls).sum()
+        # TODO: update for matrix form.
+        y = self.y.copy()
+        y = y.reshape(1, self.N)
+        return self.N - np.equal(y, class_calls).sum()
 
     #def pred_to_normalized_01_loss(self, class_calls):
     #    return self.loss_01(class_calls)/self.N

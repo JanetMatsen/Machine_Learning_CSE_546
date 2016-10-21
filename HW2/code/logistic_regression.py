@@ -12,10 +12,10 @@ class LogisticRegression(ClassificationBase):
     Train *one* model.
     """
 
-    def __init__(self, X, y, n0, lam, w=None, w0=None,
+    def __init__(self, X, y, n0, lam, W=None, W0=None,
                  max_iter=10**6, delta=10e-4):
         # call the base class's methods first
-        super(LogisticRegression, self).__init__(X, y, w, w0)
+        super(LogisticRegression, self).__init__(X, y, W, W0)
         self.nu = n0
         self.lam = lam
         self.max_iter = max_iter
@@ -26,28 +26,41 @@ class LogisticRegression(ClassificationBase):
 
     def apply_weights(self):
         """
-        calc w0 + Xw
+        calc W0 + XW
         This quantity is labeled q in my planning.
-        :return: vetor of weights applied to X.
+        :return: vetor of Weights applied to X.
         """
-        w0_array = np.ones(self.N)*self.w0
-        return w0_array + self.X.dot(self.w)
+        # Make a matrix version of W0 where the weights are repeated C times.
+        W0_matrix = np.ones(shape=(self.N, self.C))*self.W0
+        # All rows should be identical.
+        assert (W0_matrix == W0_matrix [0]).all(), \
+            "W0 matrix is supposed to have all rows identical"
+
+        return W0_matrix + self.X.dot(self.W)
 
     def probability_array(self):
         """
         Calculate the array of probabilities.
         :return: An Nx1 array.
         """
-        q = self.apply_weights()
-        return np.exp(q)/(1 + np.exp(q))
+        R = np.exp(self.apply_weights())
+        assert R.shape == (self.N, self.C)
+        # When you sum across a row, axis=1
+        R_sum_ax1 = np.sum(R, axis=1)
+        R_sum_ax1 = np.reshape(R_sum_ax1, newshape=(self.N, 1))
+        assert R_sum_ax1.shape == (self.N, 1)
+
+        # Divide each element in R by
+        return R/R_sum_ax1
 
     def predict(self, threshold=0.5):
         """
         Produce an array of class predictions
         """
         probabilities = self.probability_array()
-        classes = np.zeros(self.N)
-        classes[probabilities > threshold] = 1
+        # THIS ASSUMES the classifiers are in order: 0th column of the
+        # probabilities corresponds to label = 0, ..., 9th col is for 9.
+        classes = np.argmax(probabilities, axis=1)
         return classes
 
     def loss_01(self):
@@ -55,27 +68,38 @@ class LogisticRegression(ClassificationBase):
 
     def log_loss(self):
         probabilities = self.probability_array().copy()
-        # need to flip the probabilities for p < 0.5 with this binary case.
-        # 1 - old_val is same as oldval*-1 + 1.  Do in 2 steps:
-        probabilities[np.equal(0, self.y)] *= -1
-        probabilities[np.equal(0, self.y)] += 1
-        # when multiclass: np.amax(probabilities, 1)
+        # get just the probability for the correct label.
+        probabilities = np.multiply(self.Y, probabilities)
+        # collapse it into an Nx1 array:
+        probabilities = np.amax(probabilities, axis=1)
+        #probabilities = np.reshape(probabilities, newshape=(self.N, 1))
         return np.log(probabilities).sum()
+
+    def y_to_matrix(self):
+        """
+        Convert an array like [1, 1, 0] to [[0, 1], [0, 1], [1, 0]]
+        :return:
+        """
+
+        # assert each row sums to 1.
 
     def step(self):
         """
         Update the weights and bias
         """
         P = self.probability_array()
-        E = self.y - P  # prediction error (0 to 1)
+        E = self.Y - P  # prediction error for each class (column). (0 to 1)
 
-        self.w0 += (self.nu/self.N**0.5)*E.sum()
-        assert self.w0.shape == ()
-        assert isinstance(self.w0, np.float64)
+        T = np.reshape(E.sum(axis=0), newshape=(1, self.C))
+        W0_update = (self.nu/self.N)*T
+        W0_update = np.reshape(W0_update, newshape=(1, self.C))
+        self.W0 += W0_update
+        assert self.W0.shape == (1, self.C)
 
-        self.w += (self.nu/self.N**0.5)*(-self.lam*self.w + self.X.T.dot(E))
-        assert self.w.shape == (self.d ,), \
-            "shape of w is {}".format(self.w.shape)
+        #self.W += (self.nu/self.N**0.5)*(-self.lam*self.W + self.X.T.dot(E))
+        self.W = self.W + (self.nu/self.N)*(-self.lam*self.W + self.X.T.dot(E))
+        assert self.W.shape == (self.d ,self.C), \
+            "shape of W is {}".format(self.W.shape)
 
     def shrink_nu(self):
         self.nu = self.nu*0.99 # may want to scale w/ batch size.
@@ -86,7 +110,7 @@ class LogisticRegression(ClassificationBase):
         for s in range(1, self.max_iter+1):
             self.shrink_nu()
             old_loss_normalized = self.loss_01()/self.N
-            old_w = self.w.copy()
+            old_W = self.W.copy()
 
             self.step()
             sys.stdout.write(".")
@@ -95,6 +119,8 @@ class LogisticRegression(ClassificationBase):
             new_loss_normalized = self.loss_01()/self.N
             one_val = pd.DataFrame({"iteration": [s],
                                     #"probability 1": [self.probability_array()],
+                                    "weights": [self.W],
+                                    "bias": [self.W0],
                                     "0/1 loss": [new_loss],
                                     "(0/1 loss)/N": [new_loss_normalized],
                                     "-(log loss)": [-self.log_loss()],
@@ -104,7 +130,7 @@ class LogisticRegression(ClassificationBase):
             assert not self.has_increased_significantly(
                 old_loss_normalized, new_loss),\
                 "Normalized loss: {} --> {}".format(old_loss_normalized, new_loss)
-            if abs(old_w - self.w).max() < self.delta:
+            if abs(old_W - self.W).max() < self.delta:
                 break
 
     @staticmethod
