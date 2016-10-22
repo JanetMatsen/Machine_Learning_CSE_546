@@ -1,3 +1,4 @@
+from math import log
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -19,6 +20,7 @@ class ClassificationBase:
         self.C = np.unique(y).shape[0]
 
         # Sort the y values into columns.  1 if the Y was on for that column.
+        # E.g. y = [1, 1, 0] --> Y = [[0, 1], [0, 1], [1, 0]]
         Y = np.zeros(shape=(self.N, self.C))
         Y[np.arange(len(y)), y] = 1
         self.Y = Y
@@ -113,7 +115,9 @@ class ClassificationBaseBinary:
         assert self.w.shape == (self.d ,), \
             "shape of w is {}".format(self.w.shape)
         if w0 is None:
-            self.w0=0
+            #y_num = y.sum()
+            #self.w0 = log(y_num/(self.N-y_num))
+            self.w0 = 0
         else:
             self.w0 = w0
 

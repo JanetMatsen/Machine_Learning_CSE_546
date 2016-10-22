@@ -17,6 +17,7 @@ class LogisticRegression(ClassificationBase):
                  max_iter=10**6, delta=1e-6):
         # call the base class's methods first
         super(LogisticRegression, self).__init__(X, y, W, W0)
+        self.nu_init = n0
         self.nu = n0
         self.lam = lam
         self.max_iter = max_iter
@@ -54,7 +55,7 @@ class LogisticRegression(ClassificationBase):
         # Divide each element in R by
         return R/R_sum_ax1
 
-    def predict(self, threshold=0.5):
+    def predict(self):
         """
         Produce an array of class predictions
         """
@@ -80,14 +81,6 @@ class LogisticRegression(ClassificationBase):
             print("log loss > 1. {}".format(sum))
         return sum
 
-    def y_to_matrix(self):
-        """
-        Convert an array like [1, 1, 0] to [[0, 1], [0, 1], [1, 0]]
-        :return:
-        """
-
-        # assert each row sums to 1.
-
     def step(self):
         """
         Update the weights and bias
@@ -96,24 +89,23 @@ class LogisticRegression(ClassificationBase):
         E = self.Y - P  # prediction error for each class (column). (0 to 1)
 
         T = np.reshape(E.sum(axis=0), newshape=(1, self.C))
-        W0_update = (self.nu/self.N**0.5)*T
+        W0_update = self.nu*T
         W0_update = np.reshape(W0_update, newshape=(1, self.C))
         self.W0 += W0_update
         assert self.W0.shape == (1, self.C)
 
-        #self.W += (self.nu/self.N**0.5)*(-self.lam*self.W + self.X.T.dot(E))
-        self.W = self.W + (self.nu/self.N**0.5)*(-self.lam*self.W + self.X.T.dot(E))
+        self.W += self.nu*(-self.lam*self.W + self.X.T.dot(E))
         assert self.W.shape == (self.d ,self.C), \
             "shape of W is {}".format(self.W.shape)
 
-    def shrink_nu(self):
-        self.nu = self.nu*0.99 # may want to scale w/ batch size.
+    def shrink_nu(self, s):
+        self.nu = self.nu_init/self.N/s**0.5
 
     def run(self):
 
         # Step until converged
         for s in range(1, self.max_iter+1):
-            self.shrink_nu()
+            self.shrink_nu(s)
             old_log_loss_normalized = -self.log_loss()/self.N
 
             self.step()
@@ -123,6 +115,7 @@ class LogisticRegression(ClassificationBase):
             new_log_loss_normalized = -self.log_loss()/self.N
             one_val = pd.DataFrame({
                 "iteration": [s],
+                "nu": [self.nu],
                 #"probability 1": [self.probability_array()],
                 "probability array":[self.probability_array()],
                 "weights": [self.W],
@@ -154,6 +147,7 @@ class LogisticRegression(ClassificationBase):
        return(new > old and np.log10(1.-old/new) > -sig_fig)
 
 
+
 class LogisticRegressionBinary(ClassificationBaseBinary):
     """
     Train *one* model.
@@ -164,6 +158,7 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
         # call the base class's methods first
         super(LogisticRegressionBinary, self).__init__(X, y, w, w0)
         self.nu = n0
+        self.nu_init = n0
         self.lam = lam
         self.max_iter = max_iter
         self.delta = delta
@@ -217,23 +212,24 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
         P = self.probability_array()
         E = self.y - P  # prediction error (0 to 1)
 
-        self.w0 += (self.nu/self.N**0.5)*E.sum()
+        self.w0 += self.nu*E.sum()
         assert self.w0.shape == ()
         assert isinstance(self.w0, np.float64)
 
-        self.w += (self.nu/self.N**0.5)*(-self.lam*self.w + self.X.T.dot(E))
+        self.w += self.nu*(-self.lam*self.w + self.X.T.dot(E))
         assert self.w.shape == (self.d ,), \
             "shape of w is {}".format(self.w.shape)
 
-    def shrink_nu(self):
-        self.nu = self.nu*0.99 # may want to scale w/ batch size.
+    def shrink_nu(self, s):
+        self.nu = self.nu_init/self.N/s**0.5
+
 
     def run(self):
         results = pd.DataFrame()
 
         # Step until converged
         for s in range(1, self.max_iter+1):
-            self.shrink_nu()
+            self.shrink_nu(s)
             old_log_loss_normalized = -self.log_loss()/self.N
 
             self.step()
@@ -243,6 +239,7 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
             new_log_loss_normalized = -self.log_loss()/self.N
             one_val = pd.DataFrame({
                 "iteration": [s],
+                "nu": [self.nu],
                 #"probability 1": [self.probability_array()],
                 "probability array":[self.probability_array()],
                 "weights": [self.w],
