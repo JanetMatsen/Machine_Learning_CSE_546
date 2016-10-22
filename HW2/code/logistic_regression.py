@@ -117,14 +117,17 @@ class LogisticRegression(ClassificationBase):
 
             new_loss = self.loss_01()
             new_loss_normalized = self.loss_01()/self.N
-            one_val = pd.DataFrame({"iteration": [s],
-                                    #"probability 1": [self.probability_array()],
-                                    "weights": [self.W],
-                                    "bias": [self.W0],
-                                    "0/1 loss": [new_loss],
-                                    "(0/1 loss)/N": [new_loss_normalized],
-                                    "-(log loss)": [-self.log_loss()],
-                                    "log loss": [self.log_loss()]})
+            one_val = pd.DataFrame({
+                "iteration": [s],
+                #"probability 1": [self.probability_array()],
+                "probability array":[self.probability_array()],
+                "weights": [self.W],
+                "bias": [self.W0],
+                "0/1 loss": [new_loss],
+                "(0/1 loss)/N": [new_loss_normalized],
+                "-(log loss)": [-self.log_loss()],
+                "log loss": [self.log_loss()]
+                })
             self.results = pd.concat([self.results, one_val])
 
             assert not self.has_increased_significantly(
@@ -132,6 +135,8 @@ class LogisticRegression(ClassificationBase):
                 "Normalized loss: {} --> {}".format(old_loss_normalized, new_loss)
             if abs(old_W - self.W).max() < self.delta:
                 break
+
+        self.results.reset_index(drop=True, inplace=True)
 
     @staticmethod
     def has_increased_significantly(old, new, sig_fig=10**(-4)):
