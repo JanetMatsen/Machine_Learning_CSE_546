@@ -50,6 +50,10 @@ class ClassificationBase:
     #def pred_to_normalized_01_loss(self, class_calls):
     #    return self.loss_01(class_calls)/self.N
 
+    def num_nonzero_coefs(self, z=0.001):
+        nonzero_weights = np.absolute(self.W) > z
+        return nonzero_weights.sum()
+
     def plot_ys(self, x,y1, y2=None, ylabel=None):
         assert self.results is not None
 
@@ -80,14 +84,36 @@ class ClassificationBase:
         if filename:
             fig.savefig(filename + '.pdf')
 
-    def step(self):
-        pass
+    def plot_2_subplots(self, x, y1, y2, pandas=True):
+        fig, axs = plt.subplots(2, 1, figsize=(4, 3))
+        colors = ['c','b']
+        if pandas:
+            self.results.plot(kind='scatter', ax=axs[0], x=x, y=y1,
+                              color=colors[0], logx=True)
+            self.results.plot(kind='scatter', ax=axs[1], x=x, y=y2,
+                              color=colors[1], logx=True)
+        else: # use matplotlib
+            x=self.results[x]
+            y1=self.results[y1]
+            y2=self.results[y2]
+            axs[0].semilogx(x, y1, linestyle='--', marker='o', color=colors[0])
+            axs[1].semilogx(x, y2, linestyle='--', marker='o', color=colors[1])
 
-    def run(self):
-        pass
+        axs[0].axhline(y=0, color='k')
+        # fill 2nd plot
+        axs[1].axhline(y=0, color='k')
+
+    def plot_log_loss_and_eta(self, pandas=True):
+        self.plot_2_subplots(x='iteration',
+                             y1='-(log loss)',
+                             y2='eta',
+                             pandas=pandas)
 
 
-class ClassificationBaseBinary:
+
+
+
+class ClassificationBaseBinary(ClassificationBase):
     """
     Methods common to classification.
     """
@@ -121,3 +147,7 @@ class ClassificationBaseBinary:
         + one point for every class that's correctly called.
         """
         return self.N - np.equal(self.y, class_calls).sum()
+
+    def num_nonzero_coefs(self, z=0.001):
+        nonzero_weights = np.absolute(self.w) > z
+        return nonzero_weights.sum()

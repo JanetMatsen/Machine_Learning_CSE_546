@@ -13,17 +13,18 @@ class LogisticRegression(ClassificationBase):
     Train *one* model.
     """
 
-    def __init__(self, X, y, n0, lam, W=None, max_iter=10**6, delta=1e-6):
+    def __init__(self, X, y, n0, lam, W=None, max_iter=10**6,
+                 delta_percent=1e-3):
         '''
         No bias!
         '''
         # call the base class's methods first
         super(LogisticRegression, self).__init__(X, y, W)
-        self.nu_init = n0
-        self.nu = n0
+        self.eta_init = n0
+        self.eta = n0
         self.lam = lam
         self.max_iter = max_iter
-        self.delta = delta
+        self.delta_percent = delta_percent
 
     def optimiize_weights(self):
         pass
@@ -80,20 +81,18 @@ class LogisticRegression(ClassificationBase):
         P = self.probability_array()
         E = self.Y - P  # prediction error for each class (column). (0 to 1)
 
-        T = np.reshape(E.sum(axis=0), newshape=(1, self.C))
-
-        self.W += self.nu*(-self.lam*self.W + self.X.T.dot(E))
+        self.W += self.eta*(-self.lam*self.W + self.X.T.dot(E))
         assert self.W.shape == (self.d ,self.C), \
             "shape of W is {}".format(self.W.shape)
 
-    def shrink_nu(self, s):
-        self.nu = self.nu_init/self.N/s**0.5
+    def shrink_eta(self, s):
+        self.eta = self.eta_init/self.N/s**0.5
 
     def run(self):
 
         # Step until converged
         for s in range(1, self.max_iter+1):
-            self.shrink_nu(s)
+            self.shrink_eta(s)
             old_log_loss_normalized = -self.log_loss()/self.N
 
             self.step()
@@ -103,9 +102,10 @@ class LogisticRegression(ClassificationBase):
             new_log_loss_normalized = -self.log_loss()/self.N
             one_val = pd.DataFrame({
                 "iteration": [s],
-                "nu": [self.nu],
+                "eta": [self.eta],
                 "probability array":[self.probability_array()],
                 "weights": [self.W],
+                "# nonzero weights": [self.num_nonzero_coefs()],
                 "0/1 loss": [new_loss],
                 "(0/1 loss)/N": [new_loss/self.N],
                 "-(log loss)": [-self.log_loss()],
@@ -117,10 +117,11 @@ class LogisticRegression(ClassificationBase):
                 old_log_loss_normalized, new_log_loss_normalized),\
                 "Normalized loss: {} --> {}".format(
                     old_log_loss_normalized, new_log_loss_normalized)
-            if abs(old_log_loss_normalized - new_log_loss_normalized) < \
-                    self.delta:
-                print("Loss optimized.  Old/N: {}, new/N:{}".format(
-                    old_log_loss_normalized, new_log_loss_normalized))
+            if abs(old_log_loss_normalized - new_log_loss_normalized)/\
+                    old_log_loss_normalized*100 \
+                    < self.delta_percent:
+                print("Loss optimized.  Old/N: {}, new/N:{}. Eta: {}".format(
+                    old_log_loss_normalized, new_log_loss_normalized, self.eta))
                 break
 
         self.results.reset_index(drop=True, inplace=True)
@@ -140,14 +141,14 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
     """
 
     def __init__(self, X, y, n0, lam, w=None, w0=None,
-                 max_iter=10**6, delta=1e-6):
+                 max_iter=10**6, delta_percent=1e-3):
         # call the base class's methods first
         super(LogisticRegressionBinary, self).__init__(X, y, w, w0)
-        self.nu = n0
-        self.nu_init = n0
+        self.eta = n0
+        self.eta_init = n0
         self.lam = lam
         self.max_iter = max_iter
-        self.delta = delta
+        self.delta_percent = delta_percent
         self.results = pd.DataFrame()
 
     def optimiize_weights(self):
@@ -198,24 +199,23 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
         P = self.probability_array()
         E = self.y - P  # prediction error (0 to 1)
 
-        self.w0 += self.nu*E.sum()
+        self.w0 += self.eta*E.sum()
         assert self.w0.shape == ()
         assert isinstance(self.w0, np.float64)
 
-        self.w += self.nu*(-self.lam*self.w + self.X.T.dot(E))
+        self.w += self.eta*(-self.lam*self.w + self.X.T.dot(E))
         assert self.w.shape == (self.d ,), \
             "shape of w is {}".format(self.w.shape)
 
-    def shrink_nu(self, s):
-        self.nu = self.nu_init/self.N/s**0.5
-
+    def shrink_eta(self, s):
+        self.eta = self.eta_init/self.N/s**0.5
 
     def run(self):
         results = pd.DataFrame()
 
         # Step until converged
         for s in range(1, self.max_iter+1):
-            self.shrink_nu(s)
+            self.shrink_eta(s)
             old_log_loss_normalized = -self.log_loss()/self.N
 
             self.step()
@@ -225,10 +225,11 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
             new_log_loss_normalized = -self.log_loss()/self.N
             one_val = pd.DataFrame({
                 "iteration": [s],
-                "nu": [self.nu],
+                "eta": [self.eta],
                 #"probability 1": [self.probability_array()],
                 "probability array":[self.probability_array()],
                 "weights": [self.w],
+                "# nonzero weights": [self.num_nonzero_coefs()],
                 "bias": [self.w0],
                 "0/1 loss": [new_loss_01],
                 "(0/1 loss)/N": [new_loss_01/self.N],
@@ -237,13 +238,11 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
             })
             self.results = pd.concat([self.results, one_val])
 
-            assert not self.has_increased_significantly(
-                old_log_loss_normalized, new_log_loss_normalized),\
-                "Normalized loss: {} --> {}".format(
-                    old_log_loss_normalized, new_log_loss_normalized)
-            if abs(old_log_loss_normalized - new_log_loss_normalized) < self.delta:
-                print("Loss optimized.  Old/N: {}, new/N:{}".format(
-                    old_log_loss_normalized, new_log_loss_normalized))
+            if abs(old_log_loss_normalized - new_log_loss_normalized)/\
+                    old_log_loss_normalized*100 \
+                    < self.delta_percent:
+                print("Loss optimized.  Old/N: {}, new/N:{}, eta: {}".format(
+                    old_log_loss_normalized, new_log_loss_normalized, self.eta))
                 break
 
         self.results.reset_index(drop=True, inplace=True)
