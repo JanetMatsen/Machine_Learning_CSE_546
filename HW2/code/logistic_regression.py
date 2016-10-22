@@ -90,6 +90,8 @@ class LogisticRegression(ClassificationBase):
 
     def run(self):
 
+        num_diverged_steps = 0
+
         # Step until converged
         for s in range(1, self.max_iter+1):
             self.shrink_eta(s)
@@ -113,13 +115,22 @@ class LogisticRegression(ClassificationBase):
                 })
             self.results = pd.concat([self.results, one_val])
 
+            log_loss_percent_change = \
+                (new_log_loss_normalized - old_log_loss_normalized)/\
+                old_log_loss_normalized*100
+
+            if log_loss_percent_change > 1:
+                num_diverged_steps += 1
+            else:
+                num_diverged_steps = 0
+            if num_diverged_steps == 10:
+                assert False, "log loss grew 10 times in a row!"
+
             assert not self.has_increased_significantly(
                 old_log_loss_normalized, new_log_loss_normalized),\
                 "Normalized loss: {} --> {}".format(
                     old_log_loss_normalized, new_log_loss_normalized)
-            if abs(old_log_loss_normalized - new_log_loss_normalized)/\
-                    old_log_loss_normalized*100 \
-                    < self.delta_percent:
+            if abs(log_loss_percent_change) < self.delta_percent:
                 print("Loss optimized.  Old/N: {}, new/N:{}. Eta: {}".format(
                     old_log_loss_normalized, new_log_loss_normalized, self.eta))
                 break
@@ -213,6 +224,8 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
     def run(self):
         results = pd.DataFrame()
 
+        num_diverged_steps = 0
+
         # Step until converged
         for s in range(1, self.max_iter+1):
             self.shrink_eta(s)
@@ -223,6 +236,7 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
 
             new_loss_01 = self.loss_01()
             new_log_loss_normalized = -self.log_loss()/self.N
+
             one_val = pd.DataFrame({
                 "iteration": [s],
                 "eta": [self.eta],
@@ -238,9 +252,18 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
             })
             self.results = pd.concat([self.results, one_val])
 
-            if abs(old_log_loss_normalized - new_log_loss_normalized)/\
-                    old_log_loss_normalized*100 \
-                    < self.delta_percent:
+            log_loss_percent_change = \
+                (new_log_loss_normalized - old_log_loss_normalized)/\
+                old_log_loss_normalized*100
+
+            if log_loss_percent_change > 1:
+                num_diverged_steps += 1
+            else:
+                num_diverged_steps = 0
+            if num_diverged_steps == 10:
+                assert False, "log loss grew 10 times in a row!"
+
+            if abs(log_loss_percent_change) < self.delta_percent:
                 print("Loss optimized.  Old/N: {}, new/N:{}, eta: {}".format(
                     old_log_loss_normalized, new_log_loss_normalized, self.eta))
                 break
