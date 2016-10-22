@@ -13,10 +13,12 @@ class LogisticRegression(ClassificationBase):
     Train *one* model.
     """
 
-    def __init__(self, X, y, n0, lam, W=None, W0=None,
-                 max_iter=10**6, delta=1e-6):
+    def __init__(self, X, y, n0, lam, W=None, max_iter=10**6, delta=1e-6):
+        '''
+        No bias!
+        '''
         # call the base class's methods first
-        super(LogisticRegression, self).__init__(X, y, W, W0)
+        super(LogisticRegression, self).__init__(X, y, W)
         self.nu_init = n0
         self.nu = n0
         self.lam = lam
@@ -28,17 +30,11 @@ class LogisticRegression(ClassificationBase):
 
     def apply_weights(self):
         """
-        calc W0 + XW
+        calc XW.  No bias.
         This quantity is labeled q in my planning.
-        :return: vetor of Weights applied to X.
+        :return: vector of Weights applied to X.
         """
-        # Make a matrix version of W0 where the weights are repeated C times.
-        W0_matrix = np.ones(shape=(self.N, self.C))*self.W0
-        # All rows should be identical.
-        assert (W0_matrix == W0_matrix [0]).all(), \
-            "W0 matrix is supposed to have all rows identical"
-
-        return W0_matrix + self.X.dot(self.W)
+        return self.X.dot(self.W)
 
     def probability_array(self):
         """
@@ -74,12 +70,8 @@ class LogisticRegression(ClassificationBase):
         probabilities = np.multiply(self.Y, probabilities)
         # collapse it into an Nx1 array:
         probabilities = np.amax(probabilities, axis=1)
-        #probabilities = np.reshape(probabilities, newshape=(self.N, 1))
-        sum = np.log(probabilities).sum()
-        #return np.log(probabilities).sum()
-        if sum > 0:
-            print("log loss > 1. {}".format(sum))
-        return sum
+
+        return np.log(probabilities).sum()
 
     def step(self):
         """
@@ -89,10 +81,6 @@ class LogisticRegression(ClassificationBase):
         E = self.Y - P  # prediction error for each class (column). (0 to 1)
 
         T = np.reshape(E.sum(axis=0), newshape=(1, self.C))
-        W0_update = self.nu*T
-        W0_update = np.reshape(W0_update, newshape=(1, self.C))
-        self.W0 += W0_update
-        assert self.W0.shape == (1, self.C)
 
         self.W += self.nu*(-self.lam*self.W + self.X.T.dot(E))
         assert self.W.shape == (self.d ,self.C), \
@@ -116,10 +104,8 @@ class LogisticRegression(ClassificationBase):
             one_val = pd.DataFrame({
                 "iteration": [s],
                 "nu": [self.nu],
-                #"probability 1": [self.probability_array()],
                 "probability array":[self.probability_array()],
                 "weights": [self.W],
-                "bias": [self.W0],
                 "0/1 loss": [new_loss],
                 "(0/1 loss)/N": [new_loss/self.N],
                 "-(log loss)": [-self.log_loss()],

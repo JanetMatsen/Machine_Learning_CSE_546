@@ -8,7 +8,7 @@ class ClassificationBase:
     """
     Methods common to classification.
     """
-    def __init__(self, X, y, W=None, W0=0):
+    def __init__(self, X, y, W=None):
 
         self.X = X #sp.csc_matrix(X)
         self.N, self.d = self.X.shape
@@ -34,11 +34,6 @@ class ClassificationBase:
             assert False, "W is not None or a numpy array."
         assert self.W.shape == (self.d ,self.C), \
             "shape of W is {}".format(self.W.shape)
-        if W0 is None:
-            self.W0=np.zeros(shape=(1, self.C))
-        else:
-            self.W0 = W0
-            assert self.W0.shape == (1, self.C)
 
         # Filled in as the models are fit.
         self.results = pd.DataFrame()
