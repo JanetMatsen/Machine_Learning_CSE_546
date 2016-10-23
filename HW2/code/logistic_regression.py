@@ -62,9 +62,6 @@ class LogisticRegression(ClassificationBase):
         classes = np.argmax(probabilities, axis=1)
         return classes
 
-    def loss_01(self):
-        return self.pred_to_01_loss(self.predict())
-
     def log_loss(self):
         probabilities = self.probability_array().copy()
         # get just the probability for the correct label.
@@ -191,9 +188,6 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
         classes = np.zeros(self.N)
         classes[probabilities > threshold] = 1
         return classes
-
-    def loss_01(self):
-        return self.pred_to_01_loss(self.predict())
 
     def log_loss(self):
         probabilities = self.probability_array().copy()

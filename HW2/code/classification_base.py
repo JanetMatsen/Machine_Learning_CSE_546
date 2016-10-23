@@ -39,6 +39,12 @@ class ClassificationBase:
         # Filled in as the models are fit.
         self.results = pd.DataFrame()
 
+    def predict(self):
+        raise NotImplementedError
+
+    def loss_01(self):
+        return self.pred_to_01_loss(self.predict())
+
     def pred_to_01_loss(self, class_calls):
         """
         + one point for every class that's correctly called.
