@@ -111,6 +111,7 @@ class LogisticRegression(ClassificationBase):
                 "0/1 loss": [new_loss],
                 "(0/1 loss)/N": [new_loss/self.N],
                 "-(log loss)": [-self.log_loss()],
+                "-(log loss)/N": [-self.log_loss()/self.N],
                 "log loss": [self.log_loss()]
                 })
             self.results = pd.concat([self.results, one_val])
@@ -119,7 +120,7 @@ class LogisticRegression(ClassificationBase):
                 (new_log_loss_normalized - old_log_loss_normalized)/\
                 old_log_loss_normalized*100
 
-            if log_loss_percent_change > 1:
+            if log_loss_percent_change > 0:
                 num_diverged_steps += 1
             else:
                 num_diverged_steps = 0
@@ -248,6 +249,7 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
                 "0/1 loss": [new_loss_01],
                 "(0/1 loss)/N": [new_loss_01/self.N],
                 "-(log loss)": [-self.log_loss()],
+                "-(log loss)/N": [-self.log_loss()/self.N],
                 "log loss": [self.log_loss()]
             })
             self.results = pd.concat([self.results, one_val])
@@ -256,7 +258,7 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
                 (new_log_loss_normalized - old_log_loss_normalized)/\
                 old_log_loss_normalized*100
 
-            if log_loss_percent_change > 1:
+            if log_loss_percent_change > 0:
                 num_diverged_steps += 1
             else:
                 num_diverged_steps = 0

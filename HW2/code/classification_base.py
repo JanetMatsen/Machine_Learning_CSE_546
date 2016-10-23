@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+MNIST_PATH = '../../data/python-mnist/data'
 
 class ClassificationBase:
     """
@@ -84,7 +85,7 @@ class ClassificationBase:
         if filename:
             fig.savefig(filename + '.pdf')
 
-    def plot_2_subplots(self, x, y1, y2, pandas=True):
+    def plot_2_subplots(self, x, y1, y2, pandas=True, title=None):
         fig, axs = plt.subplots(2, 1, figsize=(4, 3))
         colors = ['c','b']
         if pandas:
@@ -97,17 +98,29 @@ class ClassificationBase:
             y1=self.results[y1]
             y2=self.results[y2]
             axs[0].semilogx(x, y1, linestyle='--', marker='o', color=colors[0])
-            axs[1].semilogx(x, y2, linestyle='--', marker='o', color=colors[1])
+            # doing loglog for eta.
+            axs[1].loglog(x, y2, linestyle='--', marker='o', color=colors[1])
 
         axs[0].axhline(y=0, color='k')
         # fill 2nd plot
         axs[1].axhline(y=0, color='k')
 
+        if title is not None:
+            plt.title(title)
+        plt.tight_layout()
+
+
     def plot_log_loss_and_eta(self, pandas=True):
-        self.plot_2_subplots(x='iteration',
-                             y1='-(log loss)',
-                             y2='eta',
-                             pandas=pandas)
+            self.plot_2_subplots(x='iteration',
+                                 y1='-(log loss)',
+                                 y2='eta',
+                                 pandas=pandas)
+
+    def plot_log_loss_normalized_and_eta(self, pandas=True):
+            self.plot_2_subplots(x='iteration',
+                                 y1='-(log loss)/N',
+                                 y2='eta',
+                                 pandas=pandas)
 
 
 
