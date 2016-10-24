@@ -1,52 +1,82 @@
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-import scipy.sparse.linalg as splin
 
-from classification_base import ClassificationBaseBinary
+from classification_base import ClassificationBase
 
 
-class RidgeBinary(ClassificationBaseBinary):
-    def __init__(self, X, y, lam):
+class RidgeBinary(ClassificationBase):
+    """
+    Train *one* ridge model.
+    """
+    def __init__(self, X, y, lam, w=None):
 
         self.X = X
-        self.N = X.shape[0]
+        self.N, self.d = X.shape
         self.y = y
         self.lam = lam
-        self.w = None
+        if w is None:
+            self.w = np.zeros(self.d)
+        assert self.w.shape == (self.d, )
+        self.threshold = None
+
+    def get_weights(self):
+        return self.w
 
     def run(self):
 
-        d = self.X.shape[1]  # d = number of features/columns
         # find lambda*I_D + X^T*X
-        piece_to_invert = sp.identity(d)*self.lam + self.X.T.dot(self.X)
+        piece_to_invert = np.identity(self.d)*self.lam + self.X.T.dot(self.X)
 
         inverted_piece = np.linalg.inv(piece_to_invert)
 
         solution = inverted_piece.dot(self.X.T)
         solution = solution.dot(self.y)
 
+        solution = np.squeeze(np.asarray(solution))
+        assert solution.shape == (self.d, )
         self.w = solution
+        self.results = pd.DataFrame(self.results_row())
 
-    def predict(self, cutoff):
-        # TODO: implement.
-        pass
+    def predict(self, threshold):
+        # TODO: having a default cutoff is a terrible idea!
+        Yhat = self.X.dot(self.w)
+        classes = np.zeros(self.N)
+        classes[Yhat > threshold] = 1
+        return classes
+
+    def loss_01(self, threshold=0.5):
+        return self.pred_to_01_loss(self.predict(threshold))
+
+    def results_row(self):
+        """
+        Return a dictionary that can be put into a Pandas DataFrame.
+        """
+        results_row = super(RidgeBinary, self).results_row()
+
+        # append on logistic regression-specific results
+        sse = self.sse()
+
+        more_details = {
+            "lambda":[self.lam],
+            "SSE":[self.sse()],
+            "RMSE":[self.rmse()],
+            }
+        results_row.update(more_details)
+        return results_row
 
     def sse(self):
         # sse = RSS
         error_v = self.X.dot(self.w) - self.y
-        return self.extract_scalar(error_v.T.dot(error_v))
+        return error_v.T.dot(error_v)
 
     def rmse(self):
         return(self.sse()/self.N)**0.5
 
-    @staticmethod
-    def extract_scalar(m):
-        assert(m.shape == (1, 1))
-        return m[0, 0]
 
 
 class RidgeRegularizationPath:
+    """ DEPRECATED """
     # TODO: refactor so it uses HyperparameterSweep class
     def __init__(self, train_X, train_y, lam_max, frac_decrease, steps,
                  val_X, val_y):
@@ -60,7 +90,7 @@ class RidgeRegularizationPath:
         self.val_y = val_y
 
     def train_with_lam(self, lam):
-        rr = Ridge(self.train_X, self.train_y, lam=lam)
+        rr = RidgeBinary(self.train_X, self.train_y, lam=lam)
         rr.solve()
         sse_train = rr.sse()
         # replace the y values with the validation y and get the val sss
