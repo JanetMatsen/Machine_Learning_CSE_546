@@ -5,24 +5,26 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from classification_base import ClassificationBase
+from classification_base import ModelFitExcpetion
 
 
 class LogisticRegression(ClassificationBase):
     """
     Train *one* model.
     """
-    def __init__(self, X, y, n0, lam, W=None, max_iter=10**6,
+    def __init__(self, X, y, eta0, lam, W=None, max_iter=10**6,
                  delta_percent=1e-3):
         '''
         No bias!
         '''
         # call the base class's methods first
         super(LogisticRegression, self).__init__(X=X, y=y, W=W)
-        self.eta_init = n0
-        self.eta = n0
+        self.eta0 = eta0
+        self.eta = eta0
         self.lam = lam
         self.max_iter = max_iter
         self.delta_percent = delta_percent
+        self.iteration = 0
 
     def apply_weights(self):
         """
@@ -77,10 +79,11 @@ class LogisticRegression(ClassificationBase):
         self.W += self.eta*(-self.lam*self.W + self.X.T.dot(E))
         assert self.W.shape == (self.d ,self.C), \
             "shape of W is {}".format(self.W.shape)
+        self.iteration += 1
 
     def shrink_eta(self, s, s_exp=0.5):
 
-        self.eta = self.eta_init/self.N/(s**s_exp)
+        self.eta = self.eta0/self.N/(s**s_exp)
 
     def results_row(self):
         """
@@ -91,10 +94,13 @@ class LogisticRegression(ClassificationBase):
         # append on logistic regression-specific results
         neg_log_loss = -self.log_loss()
         more_details = {
+            "lambda":[self.lam],
+            "initial eta":[self.eta0],
             "eta": [self.eta],  # learning rate
             "log loss": [self.log_loss()],
             "-(log loss)": [neg_log_loss],
             "-(log loss)/N": [neg_log_loss/self.N],
+            "iteration": [self.iteration]
             }
         results_row.update(more_details)
         return results_row
@@ -116,7 +122,6 @@ class LogisticRegression(ClassificationBase):
             log_loss_percent_change = (new_neg_log_loss_norm - old_neg_log_loss_norm)/ \
                 old_neg_log_loss_norm*100
 
-            results_row['iteration'] = s
             results_row['log loss percent change'] = log_loss_percent_change
             one_val = pd.DataFrame(results_row)
             self.results = pd.concat([self.results, one_val])
@@ -126,7 +131,7 @@ class LogisticRegression(ClassificationBase):
             else:
                 num_diverged_steps = 0
             if num_diverged_steps == 10:
-                assert False, "log loss grew 10 times in a row!"
+                raise ModelFitExcpetion("log loss grew 10 times in a row!")
 
             assert not self.has_increased_significantly(
                 old_neg_log_loss_norm, new_neg_log_loss_norm),\
@@ -148,11 +153,13 @@ class LogisticRegression(ClassificationBase):
 
 
 
+
+
 class LogisticRegressionBinary(LogisticRegression):
     """
     Train *one* model.
     """
-    def __init__(self, X, y, n0, lam, w=None, w0=None,
+    def __init__(self, X, y, eta0, lam, w=None, w0=None,
                  max_iter=10**6, delta_percent=1e-3):
         # Stuff that would be in a base class:
         self.X = X #sp.csc_matrix(X)
@@ -179,8 +186,9 @@ class LogisticRegressionBinary(LogisticRegression):
             self.w0 = w0
 
         # call the base class's methods first
-        self.eta = n0
-        self.eta_init = n0
+        self.eta = eta0
+        self.eta0 = eta0
+        self.iteration = 0
         self.lam = lam
         self.max_iter = max_iter
         self.delta_percent = delta_percent
@@ -254,3 +262,4 @@ class LogisticRegressionBinary(LogisticRegression):
         self.w += self.eta*(-self.lam*self.w + self.X.T.dot(E))
         assert self.w.shape == (self.d ,), \
             "shape of w is {}".format(self.w.shape)
+        self.iteration += 1

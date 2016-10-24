@@ -146,3 +146,8 @@ class ClassificationBase:
                                  y1='-(log loss)/N',
                                  y2='eta',
                                  pandas=pandas)
+
+
+class ModelFitExcpetion(Exception):
+    def __init__(self, message):
+        print(message)
