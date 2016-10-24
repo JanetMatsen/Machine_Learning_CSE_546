@@ -61,7 +61,7 @@ class ClassificationBase:
     #    return self.loss_01(class_calls)/self.N
 
     def num_nonzero_weights(self, z=0.001):
-        nonzero_weights = np.absolute(self.W) > z
+        nonzero_weights = np.absolute(self.get_weights()) > z
         return nonzero_weights.sum()
 
     def results_row(self):

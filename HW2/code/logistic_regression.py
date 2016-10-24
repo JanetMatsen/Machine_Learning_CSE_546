@@ -78,8 +78,9 @@ class LogisticRegression(ClassificationBase):
         assert self.W.shape == (self.d ,self.C), \
             "shape of W is {}".format(self.W.shape)
 
-    def shrink_eta(self, s):
-        self.eta = self.eta_init/self.N/s**0.5
+    def shrink_eta(self, s, s_exp=0.5):
+
+        self.eta = self.eta_init/self.N/(s**s_exp)
 
     def results_row(self):
         """
@@ -112,14 +113,13 @@ class LogisticRegression(ClassificationBase):
 
             results_row = self.results_row()
             new_neg_log_loss_norm = results_row['-(log loss)/N'][0]
+            log_loss_percent_change = (new_neg_log_loss_norm - old_neg_log_loss_norm)/ \
+                old_neg_log_loss_norm*100
 
             results_row['iteration'] = s
+            results_row['log loss percent change'] = log_loss_percent_change
             one_val = pd.DataFrame(results_row)
             self.results = pd.concat([self.results, one_val])
-
-            log_loss_percent_change = \
-                (new_neg_log_loss_norm - old_neg_log_loss_norm)/\
-                old_neg_log_loss_norm*100
 
             if log_loss_percent_change > 0:
                 num_diverged_steps += 1
@@ -187,6 +187,9 @@ class LogisticRegressionBinary(LogisticRegression):
         self.results = pd.DataFrame()
 
     def get_weights(self):
+        """
+        Overwrite parent's methods accessing of self.W
+        """
         return self.w
 
     def apply_weights(self):
@@ -200,16 +203,14 @@ class LogisticRegressionBinary(LogisticRegression):
 
     def pred_to_01_loss(self, class_calls):
         """
-        + one point for every class that's correctly called.
+        Overwrite the parent class.
+        Add pme point for every incorrect classification.
         """
         return self.N - np.equal(self.y, class_calls).sum()
 
-    def num_nonzero_weights(self, z=0.001):
-        nonzero_weights = np.absolute(self.w) > z
-        return nonzero_weights.sum()
-
     def probability_array(self):
         """
+        Overwrite the parent class.
         Calculate the array of probabilities.
         :return: An Nx1 array.
         """
@@ -218,6 +219,7 @@ class LogisticRegressionBinary(LogisticRegression):
 
     def predict(self, threshold=0.5):
         """
+        Overwrite the parent class.
         Produce an array of class predictions
         """
         probabilities = self.probability_array()
@@ -226,6 +228,9 @@ class LogisticRegressionBinary(LogisticRegression):
         return classes
 
     def log_loss(self):
+        """
+        Overwrite the parent class.
+        """
         probabilities = self.probability_array().copy()
         # need to flip the probabilities for p < 0.5 with this binary case.
         # 1 - old_val is same as oldval*-1 + 1.  Do in 2 steps:
@@ -236,6 +241,7 @@ class LogisticRegressionBinary(LogisticRegression):
 
     def step(self):
         """
+        Overwrite the parent class.
         Update the weights and bias
         """
         P = self.probability_array()
@@ -248,54 +254,3 @@ class LogisticRegressionBinary(LogisticRegression):
         self.w += self.eta*(-self.lam*self.w + self.X.T.dot(E))
         assert self.w.shape == (self.d ,), \
             "shape of w is {}".format(self.w.shape)
-
-    def shrink_eta(self, s):
-        self.eta = self.eta_init/self.N/s**0.5
-
-    def run(self):
-
-        num_diverged_steps = 0
-
-        # Step until converged
-        for s in range(1, self.max_iter+1):
-            self.shrink_eta(s)
-            old_neg_log_loss_norm = -self.log_loss()/self.N
-
-            self.step()
-            sys.stdout.write(".")
-
-            results_row = self.results_row()
-            new_neg_log_loss_norm = results_row['-(log loss)/N'][0]
-
-            results_row['iteration'] = s
-            one_val = pd.DataFrame(results_row)
-            self.results = pd.concat([self.results, one_val])
-
-            log_loss_percent_change = \
-                (new_neg_log_loss_norm - old_neg_log_loss_norm)/\
-                old_neg_log_loss_norm*100
-
-            if log_loss_percent_change > 0:
-                num_diverged_steps += 1
-            else:
-                num_diverged_steps = 0
-            if num_diverged_steps == 10:
-                assert False, "log loss grew 10 times in a row!"
-
-            assert not self.has_increased_significantly(
-                old_neg_log_loss_norm, new_neg_log_loss_norm),\
-                "Normalized loss: {} --> {}".format(
-                    old_neg_log_loss_norm, new_neg_log_loss_norm)
-            if abs(log_loss_percent_change) < self.delta_percent:
-                print("Loss optimized.  Old/N: {}, new/N:{}. Eta: {}".format(
-                    old_neg_log_loss_norm, new_neg_log_loss_norm, self.eta))
-                break
-
-        self.results.reset_index(drop=True, inplace=True)
-
-    @staticmethod
-    def has_increased_significantly(old, new, sig_fig=10**(-4)):
-       """
-       Return if new is larger than old in the `sig_fig` significant digit.
-       """
-       return(new > old and np.log10(1.-old/new) > -sig_fig)
