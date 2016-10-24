@@ -3,14 +3,11 @@ import pandas as pd
 import scipy.sparse as sp
 import scipy.sparse.linalg as splin
 
+from classification_base import ClassificationBaseBinary
 
-class Ridge:
-    # todo: inherit from RegressionBase
+
+class RidgeBinary(ClassificationBaseBinary):
     def __init__(self, X, y, lam):
-
-        assert type(X) == sp.csc_matrix or type(X) == sp.csr_matrix
-        assert type(lam*1.0) == float
-        assert type(y) == sp.csr_matrix or type(y) == sp.csc_matrix
 
         self.X = X
         self.N = X.shape[0]
@@ -18,18 +15,22 @@ class Ridge:
         self.lam = lam
         self.w = None
 
-    def solve(self):
+    def run(self):
 
         d = self.X.shape[1]  # d = number of features/columns
         # find lambda*I_D + X^T*X
         piece_to_invert = sp.identity(d)*self.lam + self.X.T.dot(self.X)
 
-        inverted_piece = splin.inv(piece_to_invert)
+        inverted_piece = np.linalg.inv(piece_to_invert)
 
         solution = inverted_piece.dot(self.X.T)
         solution = solution.dot(self.y)
 
         self.w = solution
+
+    def predict(self, cutoff):
+        # TODO: implement.
+        pass
 
     def sse(self):
         # sse = RSS
@@ -46,6 +47,7 @@ class Ridge:
 
 
 class RidgeRegularizationPath:
+    # TODO: refactor so it uses HyperparameterSweep class
     def __init__(self, train_X, train_y, lam_max, frac_decrease, steps,
                  val_X, val_y):
         self.train_X = train_X

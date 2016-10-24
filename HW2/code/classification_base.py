@@ -39,6 +39,9 @@ class ClassificationBase:
         # Filled in as the models are fit.
         self.results = pd.DataFrame()
 
+    def get_weights(self):
+        return self.W
+
     def predict(self):
         raise NotImplementedError
 
@@ -57,9 +60,25 @@ class ClassificationBase:
     #def pred_to_normalized_01_loss(self, class_calls):
     #    return self.loss_01(class_calls)/self.N
 
-    def num_nonzero_coefs(self, z=0.001):
+    def num_nonzero_weights(self, z=0.001):
         nonzero_weights = np.absolute(self.W) > z
         return nonzero_weights.sum()
+
+    def results_row(self):
+        """
+        Return interesting facts about the model.
+        Used to return details about fit as the model fits.
+
+        Note that the binary class below has it's own method for now
+        because it's weights are w and these are W.  #todo: make W&w same.
+        """
+        loss_01 = self.loss_01()
+        return {
+            "weights": [self.get_weights()],
+            "0/1 loss": [loss_01],
+            "(0/1 loss)/N": [loss_01/self.N],
+            "# nonzero weights": [self.num_nonzero_weights()]
+        }
 
     def plot_ys(self, x,y1, y2=None, ylabel=None):
         assert self.results is not None
@@ -161,12 +180,16 @@ class ClassificationBaseBinary(ClassificationBase):
         else:
             self.w0 = w0
 
+    def get_weights(self):
+        # overwrites parent class, because it has self.W, not self.w
+        return self.w
+
     def pred_to_01_loss(self, class_calls):
         """
         + one point for every class that's correctly called.
         """
         return self.N - np.equal(self.y, class_calls).sum()
 
-    def num_nonzero_coefs(self, z=0.001):
+    def num_nonzero_weights(self, z=0.001):
         nonzero_weights = np.absolute(self.w) > z
         return nonzero_weights.sum()
