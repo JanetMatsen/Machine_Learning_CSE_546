@@ -5,29 +5,24 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from classification_base import ClassificationBase
-from classification_base import ClassificationBaseBinary
 
 
 class LogisticRegression(ClassificationBase):
     """
     Train *one* model.
     """
-
     def __init__(self, X, y, n0, lam, W=None, max_iter=10**6,
                  delta_percent=1e-3):
         '''
         No bias!
         '''
         # call the base class's methods first
-        super(LogisticRegression, self).__init__(X, y, W)
+        super(LogisticRegression, self).__init__(X=X, y=y, W=W)
         self.eta_init = n0
         self.eta = n0
         self.lam = lam
         self.max_iter = max_iter
         self.delta_percent = delta_percent
-
-    def optimiize_weights(self):
-        pass
 
     def apply_weights(self):
         """
@@ -35,7 +30,7 @@ class LogisticRegression(ClassificationBase):
         This quantity is labeled q in my planning.
         :return: vector of Weights applied to X.
         """
-        return self.X.dot(self.W)
+        return self.X.dot(self.get_weights())
 
     def probability_array(self):
         """
@@ -153,15 +148,37 @@ class LogisticRegression(ClassificationBase):
 
 
 
-class LogisticRegressionBinary(ClassificationBaseBinary):
+class LogisticRegressionBinary(LogisticRegression):
     """
     Train *one* model.
     """
-
     def __init__(self, X, y, n0, lam, w=None, w0=None,
                  max_iter=10**6, delta_percent=1e-3):
+        # Stuff that would be in a base class:
+        self.X = X #sp.csc_matrix(X)
+        self.N, self.d = self.X.shape
+        self.y = y
+        assert self.y.shape == (self.N, )
+
+        # number of classes may be 2, or more than 2.
+        self.C = np.unique(y).shape[0]
+
+        if w is None:
+            self.w = np.zeros(self.d)
+        elif type(w) == np.ndarray:
+            self.w = w
+        else:
+            assert False, "w is not None or a numpy array."
+        assert self.w.shape == (self.d ,), \
+            "shape of w is {}".format(self.w.shape)
+        if w0 is None:
+            #y_num = y.sum()
+            #self.w0 = log(y_num/(self.N-y_num))
+            self.w0 = 0
+        else:
+            self.w0 = w0
+
         # call the base class's methods first
-        super(LogisticRegressionBinary, self).__init__(X, y, w, w0)
         self.eta = n0
         self.eta_init = n0
         self.lam = lam
@@ -169,8 +186,8 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
         self.delta_percent = delta_percent
         self.results = pd.DataFrame()
 
-    def optimiize_weights(self):
-        pass
+    def get_weights(self):
+        return self.w
 
     def apply_weights(self):
         """
@@ -180,6 +197,16 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
         """
         w0_array = np.ones(self.N)*self.w0
         return w0_array + self.X.dot(self.w)
+
+    def pred_to_01_loss(self, class_calls):
+        """
+        + one point for every class that's correctly called.
+        """
+        return self.N - np.equal(self.y, class_calls).sum()
+
+    def num_nonzero_weights(self, z=0.001):
+        nonzero_weights = np.absolute(self.w) > z
+        return nonzero_weights.sum()
 
     def probability_array(self):
         """
@@ -224,20 +251,6 @@ class LogisticRegressionBinary(ClassificationBaseBinary):
 
     def shrink_eta(self, s):
         self.eta = self.eta_init/self.N/s**0.5
-
-    def results_row(self):
-        results_row = super(LogisticRegressionBinary, self).results_row()
-
-        # append on logistic regression-specific results
-        neg_log_loss = -self.log_loss()
-        more_details = {
-            "eta": [self.eta],  # learning rate
-            "log loss": [self.log_loss()],
-            "-(log loss)": [neg_log_loss],
-            "-(log loss)/N": [neg_log_loss/self.N],
-            }
-        results_row.update(more_details)
-        return results_row
 
     def run(self):
 
