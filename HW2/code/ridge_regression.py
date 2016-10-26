@@ -10,17 +10,16 @@ class RidgeMulti(ClassificationBase):
     Train multiple ridge models.
     """
     def __init__(self, X, y, lam, W=None, verbose=False, sparse=True):
-        print("initialize RidgeMulti object.")
         super(RidgeMulti, self).__init__(X=X, y=y, W=W)
         self.sparse = sparse
         if self.sparse:
+            assert lam != 0, "can't invert the big stuff with lambda = 0."
             self.X = sp.csc_matrix(self.X)
             self.Y = sp.csc_matrix(self.Y)
         self.lam = lam
         self.W = None # don't want to have W before solving!
         self.matrix_work = None
         self.verbose = verbose
-        print("RidgeMulti object initialized.")
 
     def get_weights(self):
         if self.sparse:
@@ -43,7 +42,8 @@ class RidgeMulti(ClassificationBase):
 
         # Get (X^TX + lambdaI)
         if self.sparse:
-            piece_to_invert = sp.identity(self.d)*self.lam + self.X.T.dot(self.X)
+            piece_to_invert = sp.csc_matrix(sp.identity(self.d)*self.lam) + \
+                              self.X.T.dot(self.X)
         else:
             piece_to_invert = np.identity(self.d)*self.lam + self.X.T.dot(self.X)
         assert piece_to_invert.shape == (self.d, self.d)
@@ -196,7 +196,7 @@ class RidgeBinary(ClassificationBase):
     def loss_01(self, threshold=None):
         if threshold is None:
             threshold=0.5
-            print("WARNING: 0/1 loss is calculated for threshold=0.5, which"
+            print("WARNING: 0/1 loss is calculated for threshold=0.5, which "
                   "is very likely to be a poor choice!!")
         return self.pred_to_01_loss(self.predict(threshold))
 
