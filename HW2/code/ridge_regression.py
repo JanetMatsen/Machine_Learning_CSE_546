@@ -3,6 +3,9 @@ import pandas as pd
 import scipy.sparse as sp
 import scipy.sparse.linalg as splin
 
+import time;
+
+
 from classification_base import ClassificationBase
 
 class RidgeMulti(ClassificationBase):
@@ -28,11 +31,22 @@ class RidgeMulti(ClassificationBase):
             return self.W
 
     def apply_weights(self):
+        # Check that weights are the right dims.
+
+
+        # Apply weights
         if self.sparse:
-            return self.X.dot(self.W).toarray()
+            assert type(self.W) == sp.csc_matrix, \
+                "type of W is {}".format(type(self.W))
+            assert type(self.X) == sp.csc_matrix, \
+                "type of W is {}".format(type(self.X))
+            prod = self.X.dot(self.W)
+            if type(prod) == sp.csc_matrix:
+                return prod.toarray()
+            else:
+                return prod
         else:
             return self.X.dot(self.W)
-
 
     def optimize(self):
         # When solving multiclass, (X^TX + lambdaI)-1X^T is shared
@@ -51,6 +65,7 @@ class RidgeMulti(ClassificationBase):
         # Invert (X^TX + lambdaI)
         if self.verbose:
             print("invert matrix:")
+            print("time: {}".format(time.asctime(time.localtime(time.time()))))
         if self.sparse:
             inverted_piece = splin.inv(piece_to_invert)
         else:
@@ -58,12 +73,13 @@ class RidgeMulti(ClassificationBase):
 
         # Dot with X^T
         if self.verbose:
+            print("time: {}".format(time.asctime(time.localtime(time.time()))))
             print("dot with X^T:")
         self.matrix_work = inverted_piece.dot(self.X.T)
         assert self.matrix_work.shape == (self.d, self.N)
 
         if self.verbose:
-            print("train the C classifiers:")
+            print("train the {} classifiers:".format(self.C))
         # Train C classifiers.
         self.W = self.matrix_work.dot(self.Y)
         if self.verbose:
@@ -104,8 +120,8 @@ class RidgeMulti(ClassificationBase):
         # append on Ridge regression-specific results
         more_details = {
             "lambda":[self.lam],
-            "SSE":[self.sse()],
-            "RMSE":[self.rmse()],
+            "training SSE":[self.sse()],
+            "training RMSE":[self.rmse()],
             }
         results_row.update(more_details)
         return results_row

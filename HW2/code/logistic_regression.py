@@ -98,8 +98,8 @@ class LogisticRegression(ClassificationBase):
             "initial eta":[self.eta0],
             "eta": [self.eta],  # learning rate
             "log loss": [self.log_loss()],
-            "-(log loss)": [neg_log_loss],
-            "-(log loss)/N": [neg_log_loss/self.N],
+            "-(log loss), training": [neg_log_loss],
+            "-(log loss)/N, training": [neg_log_loss/self.N],
             "iteration": [self.iteration]
             }
         results_row.update(more_details)

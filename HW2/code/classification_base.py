@@ -71,9 +71,9 @@ class ClassificationBase:
         """
         loss_01 = self.loss_01()
         return {
-            "weights": [self.get_weights()],
-            "0/1 loss": [loss_01],
-            "(0/1 loss)/N": [loss_01/self.N],
+            "weights": [self.get_weights().copy()],
+            "training 0/1 loss": [loss_01],
+            "training (0/1 loss)/N": [loss_01/self.N],
             "# nonzero weights": [self.num_nonzero_weights()]
         }
 
