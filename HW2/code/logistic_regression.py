@@ -118,7 +118,7 @@ class LogisticRegression(ClassificationBase):
             sys.stdout.write(".")
 
             results_row = self.results_row()
-            new_neg_log_loss_norm = results_row['-(log loss)/N'][0]
+            new_neg_log_loss_norm = results_row['-(log loss)/N, training'][0]
             log_loss_percent_change = (new_neg_log_loss_norm - old_neg_log_loss_norm)/ \
                 old_neg_log_loss_norm*100
 

@@ -134,13 +134,13 @@ class ClassificationBase:
 
     def plot_log_loss_and_eta(self, pandas=True):
             self.plot_2_subplots(x='iteration',
-                                 y1='-(log loss)',
+                                 y1='-(log loss), training',
                                  y2='eta',
                                  pandas=pandas)
 
     def plot_log_loss_normalized_and_eta(self, pandas=True):
             self.plot_2_subplots(x='iteration',
-                                 y1='-(log loss)/N',
+                                 y1='-(log loss)/N, training',
                                  y2='eta',
                                  pandas=pandas)
 
