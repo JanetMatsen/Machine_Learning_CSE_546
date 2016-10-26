@@ -50,15 +50,12 @@ class ClassificationBase:
 
     def pred_to_01_loss(self, class_calls):
         """
-        + one point for every class that's correctly called.
+        + one point for every class that's incorrectly called.
+        Works for both binary classifiers and multi-class.
         """
-        # TODO: update for matrix form.
         y = self.y.copy()
         y = y.reshape(1, self.N)
         return self.N - np.equal(y, class_calls).sum()
-
-    #def pred_to_normalized_01_loss(self, class_calls):
-    #    return self.loss_01(class_calls)/self.N
 
     def num_nonzero_weights(self, z=0.001):
         nonzero_weights = np.absolute(self.get_weights()) > z
