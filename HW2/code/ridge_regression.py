@@ -72,13 +72,38 @@ class RidgeMulti(ClassificationBase):
         return results_row
 
     def sse(self):
-        # sse = RSS
+        """
+        Calculate the sum of squared errors.
+
+        In class on 10/26, Sham coached us to include errors for all
+        classifications in our RMSE (and thus SSE) calculations.
+        For y = [0, 1], Y=[[0, 1], [1, 0]], Yhat = [[0.01, 0.95], [0.99, 0.03]],
+        SSE = sum(0.01**2 + 0.05**2 + 0.01**2 + 0.03**2) = RSS
+        Note: this would not be equivalent to the binary classifier, which
+
+        My formula before only used the errors for the correct class:
+            error = self.apply_weights() - self.Y
+            error = np.multiply(error, self.Y)
+            error = np.amax(np.abs(error), axis=1)
+            return error.T.dot(error)
+
+        :return: sum of squared errors for all classes for each point (float)
+        """
+        # would only sum (0.05**2 + 0.03**2)
         error = self.apply_weights() - self.Y
-        error = np.multiply(error, self.Y)
-        error = np.amax(np.abs(error), axis=1)
-        return error.T.dot(error)
+        return np.multiply(error, error).sum()
 
     def rmse(self):
+        """
+        For the binary classifier, RMSE = (SSE/N)**0.5.
+        For the multiclass one, SSE is counting errors for all classifiers.
+        We could use (self.sse()/self.N/self.C)**0.5 to make the RMSE
+        calcs more similar between the binary and multi-class classifiers,
+        but they still are not the same, so I won't.
+
+        :return: RMSE (float)
+        """
+
         return(self.sse()/self.N)**0.5
 
 
