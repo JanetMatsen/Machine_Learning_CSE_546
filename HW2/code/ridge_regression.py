@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
+import scipy.sparse.linalg as splin
 
 from classification_base import ClassificationBase
 
@@ -8,43 +9,81 @@ class RidgeMulti(ClassificationBase):
     """
     Train multiple ridge models.
     """
-    def __init__(self, X, y, lam, W=None):
+    def __init__(self, X, y, lam, W=None, verbose=False, sparse=True):
+        print("initialize RidgeMulti object.")
         super(RidgeMulti, self).__init__(X=X, y=y, W=W)
+        self.sparse = sparse
+        if self.sparse:
+            self.X = sp.csc_matrix(self.X)
+            self.Y = sp.csc_matrix(self.Y)
         self.lam = lam
         self.W = None # don't want to have W before solving!
-        self.threshold = None
         self.matrix_work = None
+        self.verbose = verbose
+        print("RidgeMulti object initialized.")
 
     def get_weights(self):
-        return self.W
+        if self.sparse:
+            return self.W.toarray()
+        if not self.sparse:
+            return self.W
 
     def apply_weights(self):
-        return self.X.dot(self.W)
+        if self.sparse:
+            return self.X.dot(self.W).toarray()
+        else:
+            return self.X.dot(self.W)
+
 
     def optimize(self):
         # When solving multiclass, (X^TX + lambdaI)-1X^T is shared
         # solve it once and share it with all the regressors.
         # find lambda*I_D + X^T*X
-        piece_to_invert = np.identity(self.d)*self.lam + self.X.T.dot(self.X)
+        if self.verbose: print("optimize: multiply matrices before inversion.")
+
+        # Get (X^TX + lambdaI)
+        if self.sparse:
+            piece_to_invert = sp.identity(self.d)*self.lam + self.X.T.dot(self.X)
+        else:
+            piece_to_invert = np.identity(self.d)*self.lam + self.X.T.dot(self.X)
         assert piece_to_invert.shape == (self.d, self.d)
 
-        inverted_piece = np.linalg.inv(piece_to_invert)
+        # Invert (X^TX + lambdaI)
+        if self.verbose:
+            print("invert matrix:")
+        if self.sparse:
+            inverted_piece = splin.inv(piece_to_invert)
+        else:
+            inverted_piece = np.linalg.inv(piece_to_invert)
 
+        # Dot with X^T
+        if self.verbose:
+            print("dot with X^T:")
         self.matrix_work = inverted_piece.dot(self.X.T)
         assert self.matrix_work.shape == (self.d, self.N)
 
+        if self.verbose:
+            print("train the C classifiers:")
         # Train C classifiers.
         self.W = self.matrix_work.dot(self.Y)
+        if self.verbose:
+            print("done generating weights.")
         assert self.W.shape == (self.d, self.C)
         return self.W
 
     def predict(self):
+        if self.verbose:
+            print("predict:")
         if self.W is None:
             self.optimize()
 
         Yhat = self.apply_weights()
+        assert type(Yhat) == np.ndarray
         classes = np.argmax(Yhat, axis=1)
-        yhat = np.multiply(self.Y, Yhat)
+        if self.sparse:
+            yhat = np.multiply(self.Y.toarray(), Yhat)
+        else:
+            yhat = np.multiply(self.Y, Yhat)
         # collapse it into an Nx1 array:
         self.yhat = np.amax(yhat, axis=1)
         return classes
@@ -90,7 +129,11 @@ class RidgeMulti(ClassificationBase):
         :return: sum of squared errors for all classes for each point (float)
         """
         # would only sum (0.05**2 + 0.03**2)
-        error = self.apply_weights() - self.Y
+        if self.sparse:
+            error = self.apply_weights() - self.Y.toarray()
+            assert type(error) == np.ndarray
+        else:
+            error = self.apply_weights() - self.Y
         return np.multiply(error, error).sum()
 
     def rmse(self):
@@ -150,7 +193,11 @@ class RidgeBinary(ClassificationBase):
         classes[Yhat > threshold] = 1
         return classes
 
-    def loss_01(self, threshold=0.5):
+    def loss_01(self, threshold=None):
+        if threshold is None:
+            threshold=0.5
+            print("WARNING: 0/1 loss is calculated for threshold=0.5, which"
+                  "is very likely to be a poor choice!!")
         return self.pred_to_01_loss(self.predict(threshold))
 
     def results_row(self):
