@@ -39,6 +39,8 @@ class HyperparameterExplorer:
         self.validation_score_name = re.sub("training", "validation", score_name)
         self.use_prev_best_weights = use_prev_best_weights
 
+
+
     def train_model(self, **kwargs):
         # train model
         # check that model was made
@@ -49,11 +51,11 @@ class HyperparameterExplorer:
             if self.use_prev_best_weights:
                 # TODO: this wasn't working for Ridge Multiclass...
                 if "W" in m.__dict__.keys() and len(self.models) > 0:
-                    m.W = self.best_weights(self.score_name).copy()
+                    m.W = self.best('weights').copy()
                     if m.sparse:
                         m.W = sp.csc_matrix(m.W)
                 elif ("w" in m.__dict__.keys()) and len(self.models) >0:
-                    m.w = self.best_weights(self.score_name).copy()
+                    m.w = self.best('weights').copy()
         except NameError:
             print("model failed for {}".format(**kwargs))
 
@@ -68,58 +70,57 @@ class HyperparameterExplorer:
         # Save the model number for so we can look up the model later
         outcome['model number'] = [self.num_models]
 
-        # calculate the outcome for the validation data.
-        # need a new model to do this.
-        validation_model = self.model(X=self.validation_X,
-                                      y=self.validation_y,
-                                      # won't use lam b/c not training
-                                      lam=None)
-        # give the new model the trained model's weights.
-        if "W" in m.__dict__.keys():
-            validation_model.W = m.W.copy()
-            assert type(validation_model.W) == sp.csc_matrix, \
-                "type of W is {}".format(type(validation_model.W))
-            # ensure everything is sparse if necessary (Ridge)
-            if validation_model.sparse:
-                validation_model.X = sp.csc_matrix(validation_model.X)
-                validation_model.W = sp.csc_matrix(validation_model.W)
-        elif "w" in m.__dict__.keys():
-            validation_model.w = m.w.copy()
-        validation_results = validation_model.results_row()
+        validation_results = self.apply_model(m,
+                                              X=self.validation_X,
+                                              y=self.validation_y,
+                                              data_name='validation')
 
         # pick out the good results.
         outcome[self.validation_score_name] = \
-            validation_results[self.score_name][0]
+            validation_results[self.validation_score_name][0]
         outcome = pd.DataFrame(outcome)
 
         # Append this new model's findings onto the old model.
         self.summary = pd.concat([self.summary, outcome])
+        # Oh, silly Pandas:
+        self.summary.reset_index(drop=True, inplace=True)
 
         # Plot log loss vs time if applicable.
         if "log loss" in self.summary.columns:
             m.plot_log_loss_normalized_and_eta()
 
-    def best_model(self):
+    def best(self, value='model'):
         """
         Find the best model according to the validation data
         via the Pandas DataFrame.
+
+        :param value: a string describing what you want from the best model.
         """
         # get the index of the model with the best score
-        i = self.summary[[self.validation_score_name]].idxmin()
-        best_score = self.summary[self.validation_score_name].iloc(i)
-        model = self.models[1]
+        i = self.summary[[self.validation_score_name]].idxmin()[0]
+        i = self.summary['model number'][i]
+        if value == 'model number':
+            return i
+
+        if value == 'summary':
+            return pd.DataFrame(self.summary.loc[i])
+
+        best_score = self.summary.loc[i, self.validation_score_name]
+        if value == 'score':
+            return best_score
+
+        model = self.models[i]
+        if value == 'model':
+            return model
+
+        if value == 'weights':
+            return model.get_weights()
+
         print("best {} = {}; found in model {}".format(
             self.validation_score_name, best_score, i))
         return model
 
-    def best_weights(self):
-        '''
-        get best weights using the validation set.
-        '''
-        best_model = self.best_model(self.validation_score_name)
-        return best_model.get_weights()
-
-    def plot_fits(self):
+    def plot_fits(self, filename=None):
         fig, ax = plt.subplots(1, 1, figsize=(4, 3))
         plot_data = self.summary.sort('lambda')
         plt.semilogx(plot_data['lambda'], plot_data['validation RMSE'],
@@ -130,6 +131,44 @@ class HyperparameterExplorer:
         plt.xlabel('lambda')
         plt.ylabel('RMSE')
         ax.axhline(y=0, color='k')
+        plt.tight_layout()
+        if filename is not None:
+            fig.savefig(filename + '.pdf')
 
+    def apply_model(self, base_model, X, y, data_name):
+        """
+        Apply existing weights (for "base_model") to give predictions
+        on different X data.
+        """
+        # need a new model to do this.
+        new_model = self.model(X=X, y=y,
+                                      # won't use lam b/c not training
+                                      lam=None)
+        # give the new model the trained model's weights.
+        if "W" in base_model.__dict__.keys():
+            new_model.W = base_model.W.copy()
+            assert type(new_model.W) == sp.csc_matrix, \
+                "type of W is {}".format(type(new_model.W))
+            # ensure everything is sparse if necessary (Ridge)
+            if new_model.sparse:
+                new_model.X = sp.csc_matrix(new_model.X)
+                new_model.W = sp.csc_matrix(new_model.W)
+        elif "w" in base_model.__dict__.keys():
+            new_model.w = base_model.w.copy()
+
+        # rename column names from "training" to data_name
+        results = new_model.results_row()
+        results = {re.sub("training", data_name, k): v
+                   for k, v in results.items()}
+        return results
+
+    def evaluate_test_for_best_model(self, model_number):
+        print("best model's info:")
+        print(self.best('summary'))
+        print("getting best model.")
+        best_model = self.best('model')
+        test_results = self.apply_model(
+            best_model, X = self.test_X, y = self.test_y, data_name="test")
+        print(pd.DataFrame(test_results))
 
 
