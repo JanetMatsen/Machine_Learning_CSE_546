@@ -102,10 +102,11 @@ class HyperparameterExplorer:
         if value == 'model number':
             return i
 
+        summary_row = self.summary[self.summary['model number'] == i]
         if value == 'summary':
-            return pd.DataFrame(self.summary.loc[i])
+            return summary_row.T
 
-        best_score = self.summary.loc[i, self.validation_score_name]
+        best_score = summary_row[self.validation_score_name]
         if value == 'score':
             return best_score
 
@@ -120,7 +121,7 @@ class HyperparameterExplorer:
             self.validation_score_name, best_score, i))
         return model
 
-    def plot_fits(self, filename=None):
+    def plot_fits(self, filename=None, xlim=None, ylim=None):
         fig, ax = plt.subplots(1, 1, figsize=(4, 3))
         plot_data = self.summary.sort('lambda')
         plt.semilogx(plot_data['lambda'], plot_data['validation RMSE'],
@@ -131,6 +132,11 @@ class HyperparameterExplorer:
         plt.xlabel('lambda')
         plt.ylabel('RMSE')
         ax.axhline(y=0, color='k')
+        if xlim:
+            ax.set_xlim([xlim[0],xlim[1]])
+        if ylim:
+            ax.set_ylim([ylim[0],ylim[1]])
+
         plt.tight_layout()
         if filename is not None:
             fig.savefig(filename + '.pdf')
@@ -162,13 +168,28 @@ class HyperparameterExplorer:
                    for k, v in results.items()}
         return results
 
-    def evaluate_test_for_best_model(self, model_number):
-        print("best model's info:")
+    def train_on_whole_training_set(self, **model_kwargs):
+        # get the best model conditions from the hyperparameter exploration,
+        # and print it to ensure the user's hyperparameters match the best
+        # models's.:
+        print("best cross-validation model's info:")
         print(self.best('summary'))
         print("getting best model.")
         best_model = self.best('model')
+        # todo: assert that the **model_kwargs match that of the best model.
+        print(best_model.results_row())
+
+        # Initialize a new model with the full training X and y sets, and
+        # hopefully the right hyperparameters
+        self.final_model = self.model(X= self.X, y=self.y, **model_kwargs)
+        # get the weights using all the data
+        self.final_model.run()
+
+    def evaluate_test_data(self):
         test_results = self.apply_model(
-            best_model, X = self.test_X, y = self.test_y, data_name="test")
-        print(pd.DataFrame(test_results))
+            self.final_model,
+            X = self.test_X, y = self.test_y,
+            data_name="test")
+        print(pd.DataFrame(test_results).T)
 
 
