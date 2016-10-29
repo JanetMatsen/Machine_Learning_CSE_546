@@ -25,3 +25,7 @@ def mnist_training_binary(num):
     X, y = mnist_training()
     return X, np.array([int(yi==num) for yi in y])
 
+def mnist_testing_binary(num):
+    X, y = mnist_testing()
+    return X, np.array([int(yi==num) for yi in y])
+

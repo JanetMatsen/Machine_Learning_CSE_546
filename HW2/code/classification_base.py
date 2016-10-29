@@ -1,6 +1,8 @@
 from math import log
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.sparse as sp
+
 import pandas as pd
 
 MNIST_PATH = '../../data/python-mnist/data'
@@ -9,23 +11,23 @@ class ClassificationBase:
     """
     Methods common to classification.
     """
-    def __init__(self, X, y, W=None):
+    def __init__(self, X, y, W=None, scale_X=False, sparse=False):
 
-        self.X = X #sp.csc_matrix(X)
+        self.sparse = sparse
+        self.X = X
         self.N, self.d = self.X.shape
         self.y = y
         if self.y.shape == (self.N, ):
             self.y = np.reshape(self.y, newshape=(self.N, 1))
+        # number of classes may be 2, or more than 2.
+        self.C = np.unique(y).shape[0]
 
         # number of classes may be 2, or more than 2.
         self.C = np.unique(y).shape[0]
 
         # Sort the y values into columns.  1 if the Y was on for that column.
         # E.g. y = [1, 1, 0] --> Y = [[0, 1], [0, 1], [1, 0]]
-        Y = np.zeros(shape=(self.N, self.C))
-        Y[np.arange(len(y)), y] = 1
-        self.Y = Y
-        assert self.y.shape == (self.N, 1)
+        self.make_Y_from_y()
 
         if W is None:
             self.W = np.zeros(shape=(self.d, self.C))
@@ -38,6 +40,16 @@ class ClassificationBase:
 
         # Filled in as the models are fit.
         self.results = pd.DataFrame()
+
+    def make_Y_from_y(self):
+        # Sort the y values into columns.  1 if the Y was on for that column.
+        # E.g. y = [1, 1, 0] --> Y = [[0, 1], [0, 1], [1, 0]]
+        Y = np.zeros(shape=(self.N, self.C))
+        Y[np.arange(len(self.y)), np.squeeze(self.y)] = 1
+        if self.sparse:
+            Y = sp.csc_matrix(Y)
+        self.Y = Y
+        assert self.Y.shape == (self.N, self.C)
 
     def get_weights(self):
         return self.W
@@ -76,6 +88,18 @@ class ClassificationBase:
             "training (0/1 loss)/N": [loss_01/self.N],
             "# nonzero weights": [self.num_nonzero_weights()]
         }
+
+    def replace_X_and_y(self, X, y):
+        self.X = X.copy()
+        self.N = X.shape[0] # num points may change.
+        if self.sparse:
+            self.X = sp.csc_matrix(X)
+        if y.shape == (self.N, ):
+            self.y = np.reshape(y, newshape=(self.N, 1))
+        else:
+            self.y = y.copy()
+        self.make_Y_from_y()
+        assert self.Y.shape[0] == y.shape[0]
 
     def plot_ys(self, x,y1, y2=None, ylabel=None):
         assert self.results is not None
@@ -130,7 +154,6 @@ class ClassificationBase:
         if title is not None:
             plt.title(title)
         plt.tight_layout()
-
 
     def plot_log_loss_and_eta(self, pandas=True):
             self.plot_2_subplots(x='iteration',

@@ -13,7 +13,7 @@ class RidgeMulti(ClassificationBase):
     Train multiple ridge models.
     """
     def __init__(self, X, y, lam, W=None, verbose=False, sparse=True):
-        super(RidgeMulti, self).__init__(X=X, y=y, W=W)
+        super(RidgeMulti, self).__init__(X=X, y=y, W=W, sparse=sparse)
         self.sparse = sparse
         if self.sparse:
             assert lam != 0, "can't invert the big stuff with lambda = 0."
@@ -32,7 +32,6 @@ class RidgeMulti(ClassificationBase):
 
     def apply_weights(self):
         # Check that weights are the right dims.
-
 
         # Apply weights
         if self.sparse:
@@ -135,6 +134,7 @@ class RidgeMulti(ClassificationBase):
         For y = [0, 1], Y=[[0, 1], [1, 0]], Yhat = [[0.01, 0.95], [0.99, 0.03]],
         SSE = sum(0.01**2 + 0.05**2 + 0.01**2 + 0.03**2) = RSS
         Note: this would not be equivalent to the binary classifier, which
+        would only sum (0.05**2 + 0.03**2)
 
         My formula before only used the errors for the correct class:
             error = self.apply_weights() - self.Y
@@ -144,7 +144,6 @@ class RidgeMulti(ClassificationBase):
 
         :return: sum of squared errors for all classes for each point (float)
         """
-        # would only sum (0.05**2 + 0.03**2)
         if self.sparse:
             error = self.apply_weights() - self.Y.toarray()
             assert type(error) == np.ndarray

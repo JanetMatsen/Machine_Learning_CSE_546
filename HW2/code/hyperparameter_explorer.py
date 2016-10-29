@@ -24,9 +24,6 @@ class HyperparameterExplorer:
             self.train_y = y[0:split_index]
             self.validation_y = y[split_index:]
             self.model = partial(model, X=self.train_X, y=self.train_y)
-            # self.model_partial = \
-            #     partial(model, X=self.train_X, y=self.train_y,
-            #             lam=0, max_iter=2000)
         if test_X is not None:
             self.test_X = test_X
         if test_y is not None:
@@ -35,11 +32,10 @@ class HyperparameterExplorer:
         self.num_models = 0
         self.models = {}
         # the score that will be used to determine which model is best.
-        self.score_name = score_name
+        self.training_score_name = score_name
         self.validation_score_name = re.sub("training", "validation", score_name)
+        self.score_name = re.sub("training", "", score_name)
         self.use_prev_best_weights = use_prev_best_weights
-
-
 
     def train_model(self, **kwargs):
         # train model
@@ -49,7 +45,6 @@ class HyperparameterExplorer:
             # set weights to the best found so far
             # Note: this is silly for non-iterative solvers like Ridge.
             if self.use_prev_best_weights:
-                # TODO: this wasn't working for Ridge Multiclass...
                 if "W" in m.__dict__.keys() and len(self.models) > 0:
                     m.W = self.best('weights').copy()
                     if m.sparse:
@@ -70,10 +65,9 @@ class HyperparameterExplorer:
         # Save the model number for so we can look up the model later
         outcome['model number'] = [self.num_models]
 
-        validation_results = self.apply_model(m,
-                                              X=self.validation_X,
-                                              y=self.validation_y,
-                                              data_name='validation')
+        validation_results = self.apply_model(
+            m, X=self.validation_X, y=self.validation_y,
+            data_name='validation', **kwargs)
 
         # pick out the good results.
         outcome[self.validation_score_name] = \
@@ -121,16 +115,16 @@ class HyperparameterExplorer:
             self.validation_score_name, best_score, i))
         return model
 
-    def plot_fits(self, filename=None, xlim=None, ylim=None):
+    def plot_fits(self, x='lambda', filename=None, xlim=None, ylim=None):
         fig, ax = plt.subplots(1, 1, figsize=(4, 3))
-        plot_data = self.summary.sort('lambda')
-        plt.semilogx(plot_data['lambda'], plot_data['validation RMSE'],
+        plot_data = self.summary.sort(x)
+        plt.semilogx(plot_data[x], plot_data[self.validation_score_name],
                     linestyle='--', marker='o', c='g')
-        plt.semilogx(plot_data['lambda'], plot_data['training RMSE'],
-                    linestyle='--', marker='o', c='grey')
+        plt.semilogx(plot_data[x], plot_data[self.training_score_name],
+                     linestyle='--', marker='o', c='grey')
         plt.legend(loc='best')
-        plt.xlabel('lambda')
-        plt.ylabel('RMSE')
+        plt.xlabel(x)
+        plt.ylabel(self.score_name)
         ax.axhline(y=0, color='k')
         if xlim:
             ax.set_xlim([xlim[0],xlim[1]])
@@ -141,15 +135,9 @@ class HyperparameterExplorer:
         if filename is not None:
             fig.savefig(filename + '.pdf')
 
-    def apply_model(self, base_model, X, y, data_name):
-        """
-        Apply existing weights (for "base_model") to give predictions
-        on different X data.
-        """
-        # need a new model to do this.
-        new_model = self.model(X=X, y=y,
-                                      # won't use lam b/c not training
-                                      lam=None)
+    def transfer_weights_to_new_model(self, base_model, **model_kwargs):
+
+        new_model = self.model(**model_kwargs)
         # give the new model the trained model's weights.
         if "W" in base_model.__dict__.keys():
             new_model.W = base_model.W.copy()
@@ -162,6 +150,28 @@ class HyperparameterExplorer:
         elif "w" in base_model.__dict__.keys():
             new_model.w = base_model.w.copy()
 
+        assert new_model.X.shape == base_model.X.shape
+        assert new_model.y.shape == base_model.y.shape
+        return new_model
+
+    def apply_model(self, base_model, X, y, data_name, **model_kwargs):
+        """
+        Apply existing weights (for "base_model") to give predictions
+        on different X data.
+        """
+        # need a new model to do this.
+        new_model = self.transfer_weights_to_new_model(base_model,
+                                                       **model_kwargs)
+
+        # attach the now-different X and y values.
+        if new_model.sparse:
+                X = sp.csc_matrix(X)
+        new_model.replace_X_and_y(X, y)
+        assert new_model.X.shape == X.shape
+        assert new_model.Y.shape[0] == y.shape[0]
+
+        # not training the new model this time!
+
         # rename column names from "training" to data_name
         results = new_model.results_row()
         results = {re.sub("training", data_name, k): v
@@ -172,6 +182,7 @@ class HyperparameterExplorer:
         # get the best model conditions from the hyperparameter exploration,
         # and print it to ensure the user's hyperparameters match the best
         # models's.:
+        # TODO: use best training mode's weights as seed weights.
         print("best cross-validation model's info:")
         print(self.best('summary'))
         print("getting best model.")
@@ -180,16 +191,17 @@ class HyperparameterExplorer:
         print(best_model.results_row())
 
         # Initialize a new model with the full training X and y sets, and
-        # hopefully the right hyperparameters
-        self.final_model = self.model(X= self.X, y=self.y, **model_kwargs)
-        # get the weights using all the data
+        # hopefully the right hyperparameters (currently doing manually)
+        self.final_model = self.transfer_weights_to_new_model(
+            base_model=best_model, **model_kwargs)
+        # find the best weights using all the data
         self.final_model.run()
 
-    def evaluate_test_data(self):
+    def evaluate_test_data(self, **model_kwargs):
         test_results = self.apply_model(
             self.final_model,
             X = self.test_X, y = self.test_y,
-            data_name="test")
+            data_name="test", lam=None, **model_kwargs)  # lam value not actually used!
         print(pd.DataFrame(test_results).T)
 
 
