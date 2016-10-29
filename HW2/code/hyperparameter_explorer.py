@@ -7,23 +7,27 @@ import pandas as pd
 
 
 class HyperparameterExplorer:
-    def __init__(self, X, y, model, score_name, validation_split=None,
+    def __init__(self, X, y, model, score_name, validation_split=0.1,
                  test_X=None, test_y=None, use_prev_best_weights=True):
         # model_partial is a model that's missing one or more parameters.
         self.X = X
         self.y = y
         self.N, self.d = X.shape
         self.summary = pd.DataFrame()
+
         # split off a validation set from X
-        if validation_split is not None:
-            split_index = int(self.N*(1-validation_split))
-            print("{} of {} points from training are reserved for "
-                  "validation".format(self.N - split_index, self.N))
-            self.train_X = X[0:split_index, :]
-            self.validation_X = X[split_index:, :]
-            self.train_y = y[0:split_index]
-            self.validation_y = y[split_index:]
-            self.model = partial(model, X=self.train_X, y=self.train_y)
+        split_index = int(self.N*(1-validation_split))
+        print("{} of {} points from training are reserved for "
+              "validation".format(self.N - split_index, self.N))
+        self.train_X = X[0:split_index, :]
+        self.validation_X = X[split_index:, :]
+        self.train_y = y[0:split_index]
+        self.validation_y = y[split_index:]
+        self.model = partial(model, X=self.train_X, y=self.train_y)
+
+        if test_X is not None and test_y is not None:
+            self.model = partial(self.model, test_X=test_X, test_y=test_y)
+
         if test_X is not None:
             self.test_X = test_X
         if test_y is not None:
@@ -47,7 +51,7 @@ class HyperparameterExplorer:
             if self.use_prev_best_weights:
                 if "W" in m.__dict__.keys() and len(self.models) > 0:
                     m.W = self.best('weights').copy()
-                    if m.sparse:
+                    if m.is_sparse():
                         m.W = sp.csc_matrix(m.W)
                 elif ("w" in m.__dict__.keys()) and len(self.models) >0:
                     m.w = self.best('weights').copy()
@@ -68,11 +72,11 @@ class HyperparameterExplorer:
         validation_results = self.apply_model(
             m, X=self.validation_X, y=self.validation_y,
             data_name='validation', **kwargs)
-
-        # pick out the good results.
-        outcome[self.validation_score_name] = \
-            validation_results[self.validation_score_name][0]
-        outcome = pd.DataFrame(outcome)
+        validation_results = pd.DataFrame(validation_results)
+        v_columns = [c for c in validation_results.columns
+                     if 'validation' in c or 'lambda' == c]
+        outcome = pd.merge(pd.DataFrame(outcome),
+                           validation_results[v_columns])
 
         # Append this new model's findings onto the old model.
         self.summary = pd.concat([self.summary, outcome])
@@ -144,7 +148,7 @@ class HyperparameterExplorer:
             assert type(new_model.W) == sp.csc_matrix, \
                 "type of W is {}".format(type(new_model.W))
             # ensure everything is sparse if necessary (Ridge)
-            if new_model.sparse:
+            if new_model.is_sparse():
                 new_model.X = sp.csc_matrix(new_model.X)
                 new_model.W = sp.csc_matrix(new_model.W)
         elif "w" in base_model.__dict__.keys():
@@ -164,11 +168,12 @@ class HyperparameterExplorer:
                                                        **model_kwargs)
 
         # attach the now-different X and y values.
-        if new_model.sparse:
-                X = sp.csc_matrix(X)
+        if new_model.is_sparse():
+            X = sp.csc_matrix(X)
         new_model.replace_X_and_y(X, y)
         assert new_model.X.shape == X.shape
-        assert new_model.Y.shape[0] == y.shape[0]
+        if not new_model.binary:
+            assert new_model.Y.shape[0] == y.shape[0]
 
         # not training the new model this time!
 
@@ -194,6 +199,7 @@ class HyperparameterExplorer:
         # hopefully the right hyperparameters (currently doing manually)
         self.final_model = self.transfer_weights_to_new_model(
             base_model=best_model, **model_kwargs)
+
         # find the best weights using all the data
         self.final_model.run()
 
@@ -201,7 +207,7 @@ class HyperparameterExplorer:
         test_results = self.apply_model(
             self.final_model,
             X = self.test_X, y = self.test_y,
-            data_name="test", lam=None, **model_kwargs)  # lam value not actually used!
+            data_name="test", **model_kwargs)  # lam value not actually used!
         print(pd.DataFrame(test_results).T)
 
 

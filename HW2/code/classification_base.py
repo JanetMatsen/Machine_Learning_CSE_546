@@ -11,9 +11,11 @@ class ClassificationBase:
     """
     Methods common to classification.
     """
-    def __init__(self, X, y, W=None, scale_X=False, sparse=False):
+    def __init__(self, X, y, W=None, scale_X=False,
+                 sparse=False, binary=False):
 
         self.sparse = sparse
+        self.binary = binary # should y be (N,) or (N,1)
         self.X = X
         self.N, self.d = self.X.shape
         self.y = y
@@ -44,9 +46,11 @@ class ClassificationBase:
     def make_Y_from_y(self):
         # Sort the y values into columns.  1 if the Y was on for that column.
         # E.g. y = [1, 1, 0] --> Y = [[0, 1], [0, 1], [1, 0]]
+        if self.binary:
+            return
         Y = np.zeros(shape=(self.N, self.C))
         Y[np.arange(len(self.y)), np.squeeze(self.y)] = 1
-        if self.sparse:
+        if self.is_sparse():
             Y = sp.csc_matrix(Y)
         self.Y = Y
         assert self.Y.shape == (self.N, self.C)
@@ -89,17 +93,30 @@ class ClassificationBase:
             "# nonzero weights": [self.num_nonzero_weights()]
         }
 
+    def is_sparse(self):
+        """
+        Some models don't have a notion of sparsity.  This returns true only
+        if the model does have a sparsity attribute, and that attribute
+        is True.
+        """
+        if 'sparse' in self.__dict__.keys():
+            if self.sparse:
+                return True
+        else:
+            return False
+
     def replace_X_and_y(self, X, y):
         self.X = X.copy()
         self.N = X.shape[0] # num points may change.
-        if self.sparse:
+        if self.is_sparse():
             self.X = sp.csc_matrix(X)
-        if y.shape == (self.N, ):
+        if y.shape == (self.N, ) and not self.binary:
             self.y = np.reshape(y, newshape=(self.N, 1))
         else:
             self.y = y.copy()
-        self.make_Y_from_y()
-        assert self.Y.shape[0] == y.shape[0]
+        if not self.binary:
+            self.make_Y_from_y()
+            assert self.Y.shape[0] == y.shape[0]
 
     def plot_ys(self, x,y1, y2=None, ylabel=None):
         assert self.results is not None

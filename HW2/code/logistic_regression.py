@@ -13,7 +13,7 @@ class LogisticRegression(ClassificationBase):
     Train *one* model.
     """
     def __init__(self, X, y, eta0, lam, W=None, max_iter=10**6,
-                 delta_percent=1e-3):
+                 delta_percent=1e-3, verbose=False):
         '''
         No bias!
         '''
@@ -22,9 +22,11 @@ class LogisticRegression(ClassificationBase):
         self.eta0 = eta0
         self.eta = eta0
         self.lam = lam
+        self.lam_norm = lam/np.linalg.norm(X) # np norm defaults to L2
         self.max_iter = max_iter
         self.delta_percent = delta_percent
         self.iteration = 0
+        self.verbose=verbose
 
     def apply_weights(self):
         """
@@ -76,7 +78,7 @@ class LogisticRegression(ClassificationBase):
         P = self.probability_array()
         E = self.Y - P  # prediction error for each class (column). (0 to 1)
 
-        self.W += self.eta*(-self.lam*self.W + self.X.T.dot(E))
+        self.W += self.eta*(-self.lam_norm*self.W + self.X.T.dot(E))
         assert self.W.shape == (self.d ,self.C), \
             "shape of W is {}".format(self.W.shape)
         self.iteration += 1
@@ -95,7 +97,8 @@ class LogisticRegression(ClassificationBase):
         neg_log_loss = -self.log_loss()
         more_details = {
             "lambda":[self.lam],
-            "initial eta":[self.eta0],
+            "lambda normalized":[self.lam_norm],
+            "eta0":[self.eta0],
             "eta": [self.eta],  # learning rate
             "log loss": [self.log_loss()],
             "-(log loss), training": [neg_log_loss],
@@ -108,10 +111,12 @@ class LogisticRegression(ClassificationBase):
     def run(self):
 
         num_diverged_steps = 0
+        fast_convergence_steps = 0
 
         # Step until converged
         for s in range(1, self.max_iter+1):
-            self.shrink_eta(s)
+            # shrink eta if we aren't moving quickly towards the optimum.
+            self.shrink_eta(s - fast_convergence_steps + 1)
             old_neg_log_loss_norm = -self.log_loss()/self.N
 
             self.step()
@@ -119,15 +124,23 @@ class LogisticRegression(ClassificationBase):
 
             results_row = self.results_row()
             new_neg_log_loss_norm = results_row['-(log loss)/N, training'][0]
-            log_loss_percent_change = (new_neg_log_loss_norm - old_neg_log_loss_norm)/ \
+            # print every 5th time
+            if self.verbose:
+                if s%5== 0: print(new_neg_log_loss_norm)
+
+            neg_log_loss_percent_change = \
+                (new_neg_log_loss_norm - old_neg_log_loss_norm)/ \
                 old_neg_log_loss_norm*100
 
-            results_row['log loss percent change'] = log_loss_percent_change
+            results_row['log loss percent change'] = neg_log_loss_percent_change
             one_val = pd.DataFrame(results_row)
             self.results = pd.concat([self.results, one_val])
 
-            if log_loss_percent_change > 0:
+            # TODO: these convergence steps aren't really tested!
+            if neg_log_loss_percent_change > 0:
                 num_diverged_steps += 1
+            elif neg_log_loss_percent_change < -5 and num_diverged_steps == 0:
+                fast_convergence_steps += 1
             else:
                 num_diverged_steps = 0
             if num_diverged_steps == 10:
@@ -137,7 +150,7 @@ class LogisticRegression(ClassificationBase):
                 old_neg_log_loss_norm, new_neg_log_loss_norm),\
                 "Normalized loss: {} --> {}".format(
                     old_neg_log_loss_norm, new_neg_log_loss_norm)
-            if abs(log_loss_percent_change) < self.delta_percent:
+            if abs(neg_log_loss_percent_change) < self.delta_percent:
                 print("Loss optimized.  Old/N: {}, new/N:{}. Eta: {}".format(
                     old_neg_log_loss_norm, new_neg_log_loss_norm, self.eta))
                 break
@@ -152,18 +165,18 @@ class LogisticRegression(ClassificationBase):
        return(new > old and np.log10(1.-old/new) > -sig_fig)
 
 
-
-
-
 class LogisticRegressionBinary(LogisticRegression):
     """
     Train *one* model.
     """
-    def __init__(self, X, y, eta0, lam, w=None, w0=None,
-                 max_iter=10**6, delta_percent=1e-3):
+    def __init__(self, X, y, test_X, test_y, eta0, lam, w=None, w0=None,
+                 max_iter=10**6, delta_percent=1e-3, verbose=False):
+        self.binary = True
         # Stuff that would be in a base class:
         self.X = X #sp.csc_matrix(X)
         self.N, self.d = self.X.shape
+        # Check that the input y is really binary.
+        assert np.array_equal(np.unique(y),np.array([0,1]))
         self.y = y
         assert self.y.shape == (self.N, )
 
@@ -190,9 +203,13 @@ class LogisticRegressionBinary(LogisticRegression):
         self.eta0 = eta0
         self.iteration = 0
         self.lam = lam
+        self.lam_norm = lam/np.linalg.norm(X) # np norm defaults to L2
         self.max_iter = max_iter
         self.delta_percent = delta_percent
         self.results = pd.DataFrame()
+        self.verbose=verbose
+
+        self.test_y = test_y
 
     def get_weights(self):
         """
@@ -259,7 +276,7 @@ class LogisticRegressionBinary(LogisticRegression):
         assert self.w0.shape == ()
         assert isinstance(self.w0, np.float64)
 
-        self.w += self.eta*(-self.lam*self.w + self.X.T.dot(E))
+        self.w += self.eta*(-self.lam_norm*self.w + self.X.T.dot(E))
         assert self.w.shape == (self.d ,), \
             "shape of w is {}".format(self.w.shape)
         self.iteration += 1
