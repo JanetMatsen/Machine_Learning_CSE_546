@@ -12,7 +12,13 @@ class RidgeMulti(ClassificationBase):
     """
     Train multiple ridge models.
     """
-    def __init__(self, X, y, lam, W=None, verbose=False, sparse=True):
+    def __init__(self, X, y, lam, W=None, verbose=False, sparse=True,
+                 test_X=None, test_y = None
+                 ):
+        """
+        test_X, test_y are for compatibility only, because the questions for
+         other methods require knowing test data during fitting.
+        """
         super(RidgeMulti, self).__init__(X=X, y=y, W=W, sparse=sparse)
         self.sparse = sparse
         if self.sparse:
@@ -169,8 +175,11 @@ class RidgeBinary(ClassificationBase):
     """
     Train *one* ridge model.
     """
-    def __init__(self, X, y, lam, w=None):
-
+    def __init__(self, X, y, lam, w=None, test_X=None, test_y = None):
+        """
+        test_X, test_y are for compatibility only, because the questions for
+         other methods require knowing test data during fitting.
+        """
         self.X = X
         self.N, self.d = X.shape
         self.y = y

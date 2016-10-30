@@ -13,7 +13,8 @@ class LogisticRegression(ClassificationBase):
     Train *one* model.
     """
     def __init__(self, X, y, eta0, lam, W=None, max_iter=10**6,
-                 delta_percent=1e-3, verbose=False):
+                 delta_percent=1e-3, verbose=False,
+                 test_X=None, test_Y=None): #
         '''
         No bias!
         '''
@@ -154,6 +155,9 @@ class LogisticRegression(ClassificationBase):
                 print("Loss optimized.  Old/N: {}, new/N:{}. Eta: {}".format(
                     old_neg_log_loss_norm, new_neg_log_loss_norm, self.eta))
                 break
+
+            if s == self.max_iter:
+                print('max iterations ({}) reached.'.format(self.max_iter))
 
         self.results.reset_index(drop=True, inplace=True)
 

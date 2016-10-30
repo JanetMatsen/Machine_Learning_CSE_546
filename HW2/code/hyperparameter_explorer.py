@@ -1,5 +1,6 @@
 from functools import partial
 import matplotlib.pyplot as plt
+import numpy as np
 import scipy.sparse as sp
 import re
 
@@ -23,6 +24,11 @@ class HyperparameterExplorer:
         self.validation_X = X[split_index:, :]
         self.train_y = y[0:split_index]
         self.validation_y = y[split_index:]
+        print('variances of all training data: {}'.format(np.var(y)))
+        print('variances of split-off training & validation '
+              'data: {}, {}'.format(np.var(self.train_y),
+                                    np.var(self.validation_y)))
+
         self.model = partial(model, X=self.train_X, y=self.train_y)
 
         if test_X is not None and test_y is not None:
@@ -49,12 +55,14 @@ class HyperparameterExplorer:
             # set weights to the best found so far
             # Note: this is silly for non-iterative solvers like Ridge.
             if self.use_prev_best_weights:
-                if "W" in m.__dict__.keys() and len(self.models) > 0:
-                    m.W = self.best('weights').copy()
+                best_weights = self.best_weights_given_lam(m.lam)
+                if "W" in m.__dict__.keys() and best_weights is not None:
+                    # TODO: new fun best_weights_given_lam()
+                    m.W = best_weights.copy()
                     if m.is_sparse():
                         m.W = sp.csc_matrix(m.W)
-                elif ("w" in m.__dict__.keys()) and len(self.models) >0:
-                    m.w = self.best('weights').copy()
+                elif ("w" in m.__dict__.keys()) and best_weights is not None:
+                    m.w = best_weights.copy()
         except NameError:
             print("model failed for {}".format(**kwargs))
 
@@ -119,6 +127,52 @@ class HyperparameterExplorer:
             self.validation_score_name, best_score, i))
         return model
 
+    def best_results_for_each_lambda(self):
+        """
+        Group summary results by lambda and return a summary of the best
+        validation score result for each lambda tested so far.
+        """
+        if self.summary.shape[0] == 0:
+            return None
+        # best losses at each lambda:
+        idx = self.summary.groupby(['lambda'])[self.validation_score_name].\
+                  transform(min) == self.summary[self.validation_score_name]
+        return self.summary[idx]
+
+    def best_weights_given_lam(self, lam):
+        """
+        Return the best weights seen for your lambda.
+        If your lambda hasn't been tested, return the best weights for the
+        closest lambda.
+        """
+        best_scores = self.best_results_for_each_lambda()
+        if best_scores is None:
+            return None
+        # closest lambda value tested so far:
+        #c =  min(myList, key=lambda x:abs(x-myNumber))
+        def closest_lambda(x):
+            """ lambda function: gets the most similar lambda in the dataframe"""
+            nonlocal lam
+            return abs(x-lam)
+
+        closest_lambda = min(best_scores['lambda'].reset_index(drop=True),
+                              key=closest_lambda)
+        closest_score = \
+            best_scores[best_scores['lambda'] ==
+                        closest_lambda][self.validation_score_name].reset_index(drop=True)[0]
+        # old_df[((old_df['C1'] > 0) & (old_df['C3'] < 20))]
+        closest_row = \
+            self.summary[(self.summary['lambda'] == closest_lambda) &
+                         (self.summary[self.validation_score_name] ==
+                          closest_score)]
+
+        assert closest_row.shape[0] == 1
+        print("returning best weights for lambda = {}.  "
+              "Corresponded to {} = {}".format(
+            closest_lambda, self.validation_score_name, closest_score))
+
+        return closest_row['weights'].reset_index(drop=True)[0].copy()
+
     def plot_fits(self, x='lambda', filename=None, xlim=None, ylim=None):
         fig, ax = plt.subplots(1, 1, figsize=(4, 3))
         plot_data = self.summary.sort(x)
@@ -174,8 +228,11 @@ class HyperparameterExplorer:
         assert new_model.X.shape == X.shape
         if not new_model.binary:
             assert new_model.Y.shape[0] == y.shape[0]
-
         # not training the new model this time!
+
+        assert new_model.X.shape == X.shape
+        assert new_model.y.shape == y.shape
+        assert new_model.N == X.shape[0]
 
         # rename column names from "training" to data_name
         results = new_model.results_row()
