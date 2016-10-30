@@ -11,8 +11,8 @@ class HyperparameterExplorer:
     def __init__(self, X, y, model, score_name, validation_split=0.1,
                  test_X=None, test_y=None, use_prev_best_weights=True):
         # model_partial is a model that's missing one or more parameters.
-        self.X = X
-        self.y = y
+        self.all_training_X = X  # reserved for final training after hyper sweep.
+        self.all_training_y = y  # reserved for final training after hyper sweep.
         self.N, self.d = X.shape
         self.summary = pd.DataFrame()
 
@@ -173,12 +173,19 @@ class HyperparameterExplorer:
 
         return closest_row['weights'].reset_index(drop=True)[0].copy()
 
-    def plot_fits(self, x='lambda', filename=None, xlim=None, ylim=None):
+    def plot_fits(self, df = None, x='lambda',
+                  y1=None, y2=None, filename=None, xlim=None, ylim=None):
+        if df is None:
+            df = self.summary
+        if y1 == None:
+            y1 = self.validation_score_name
+        if y2 == None:
+            y2 = self.training_score_name
         fig, ax = plt.subplots(1, 1, figsize=(4, 3))
-        plot_data = self.summary.sort(x)
-        plt.semilogx(plot_data[x], plot_data[self.validation_score_name],
+        plot_data = df.sort(x)
+        plt.semilogx(plot_data[x], plot_data[y1],
                     linestyle='--', marker='o', c='g')
-        plt.semilogx(plot_data[x], plot_data[self.training_score_name],
+        plt.semilogx(plot_data[x], plot_data[y2],
                      linestyle='--', marker='o', c='grey')
         plt.legend(loc='best')
         plt.xlabel(x)
@@ -192,6 +199,10 @@ class HyperparameterExplorer:
         plt.tight_layout()
         if filename is not None:
             fig.savefig(filename + '.pdf')
+
+    def plot_best_fits(self, y1=None, y2=None):
+        df = self.best_results_for_each_lambda()
+        self.plot_fits(df=df, y1=y1, y2=y2, xlim=None, ylim=None)
 
     def transfer_weights_to_new_model(self, base_model, **model_kwargs):
 
@@ -245,8 +256,8 @@ class HyperparameterExplorer:
         # and print it to ensure the user's hyperparameters match the best
         # models's.:
         # TODO: use best training mode's weights as seed weights.
-        print("best cross-validation model's info:")
-        print(self.best('summary'))
+        #print("best cross-validation model's info:")
+        #print(self.best('summary'))
         print("getting best model.")
         best_model = self.best('model')
         # todo: assert that the **model_kwargs match that of the best model.
@@ -256,6 +267,10 @@ class HyperparameterExplorer:
         # hopefully the right hyperparameters (currently doing manually)
         self.final_model = self.transfer_weights_to_new_model(
             base_model=best_model, **model_kwargs)
+
+        # replace the smaller training sets with the whole training set.
+        self.final_model.X = self.all_training_X
+        self.final_model.y = self.all_training_y
 
         # find the best weights using all the data
         self.final_model.run()
