@@ -32,12 +32,10 @@ class HyperparameterExplorer:
         self.model = partial(model, X=self.train_X, y=self.train_y)
 
         if test_X is not None and test_y is not None:
+            self.test_X = test_X
+            self.test_y = test_y
             self.model = partial(self.model, test_X=test_X, test_y=test_y)
 
-        if test_X is not None:
-            self.test_X = test_X
-        if test_y is not None:
-            self.test_y = test_y
         # keep track of model numbers.
         self.num_models = 0
         self.models = {}
@@ -77,9 +75,9 @@ class HyperparameterExplorer:
         # Save the model number for so we can look up the model later
         outcome['model number'] = [self.num_models]
 
-        validation_results = self.apply_model(
-            m, X=self.validation_X, y=self.validation_y,
-            data_name='validation', **kwargs)
+        validation_results = m.apply_model(X=self.validation_X,
+                                           y=self.validation_y,
+                                           data_name='validation')
         validation_results = pd.DataFrame(validation_results)
         v_columns = [c for c in validation_results.columns
                      if 'validation' in c or 'lambda' == c]
@@ -204,82 +202,30 @@ class HyperparameterExplorer:
         df = self.best_results_for_each_lambda()
         self.plot_fits(df=df, y1=y1, y2=y2, xlim=None, ylim=None)
 
-    def transfer_weights_to_new_model(self, base_model, **model_kwargs):
-
-        new_model = self.model(**model_kwargs)
-        # give the new model the trained model's weights.
-        if "W" in base_model.__dict__.keys():
-            new_model.W = base_model.W.copy()
-            assert type(new_model.W) == sp.csc_matrix, \
-                "type of W is {}".format(type(new_model.W))
-            # ensure everything is sparse if necessary (Ridge)
-            if new_model.is_sparse():
-                new_model.X = sp.csc_matrix(new_model.X)
-                new_model.W = sp.csc_matrix(new_model.W)
-        elif "w" in base_model.__dict__.keys():
-            new_model.w = base_model.w.copy()
-
-        assert new_model.X.shape == base_model.X.shape
-        assert new_model.y.shape == base_model.y.shape
-        return new_model
-
-    def apply_model(self, base_model, X, y, data_name, **model_kwargs):
-        """
-        Apply existing weights (for "base_model") to give predictions
-        on different X data.
-        """
-        # need a new model to do this.
-        new_model = self.transfer_weights_to_new_model(base_model,
-                                                       **model_kwargs)
-
-        # attach the now-different X and y values.
-        if new_model.is_sparse():
-            X = sp.csc_matrix(X)
-        new_model.replace_X_and_y(X, y)
-        assert new_model.X.shape == X.shape
-        if not new_model.binary:
-            assert new_model.Y.shape[0] == y.shape[0]
-        # not training the new model this time!
-
-        assert new_model.X.shape == X.shape
-        assert new_model.y.shape == y.shape
-        assert new_model.N == X.shape[0]
-
-        # rename column names from "training" to data_name
-        results = new_model.results_row()
-        results = {re.sub("training", data_name, k): v
-                   for k, v in results.items()}
-        return results
-
-    def train_on_whole_training_set(self, **model_kwargs):
+    def train_on_whole_training_set(self, max_iter=None, delta_percent=None):
         # get the best model conditions from the hyperparameter exploration,
         # and print it to ensure the user's hyperparameters match the best
         # models's.:
-        # TODO: use best training mode's weights as seed weights.
         #print("best cross-validation model's info:")
         #print(self.best('summary'))
         print("getting best model.")
-        best_model = self.best('model')
-        # todo: assert that the **model_kwargs match that of the best model.
-        print(best_model.results_row())
-
-        # Initialize a new model with the full training X and y sets, and
-        # hopefully the right hyperparameters (currently doing manually)
-        self.final_model = self.transfer_weights_to_new_model(
-            base_model=best_model, **model_kwargs)
+        self.final_model = self.best('model').copy()
+        print(self.final_model.results_row())
 
         # replace the smaller training sets with the whole training set.
-        self.final_model.X = self.all_training_X
-        self.final_model.y = self.all_training_y
+        self.final_model.replace_X_and_y(self.all_training_X,
+                                         self.all_training_y)
+        if max_iter:
+            self.final_model.max_iter = max_iter
+        if delta_percent:
+            self.delta_percent = delta_percent
 
         # find the best weights using all the data
         self.final_model.run()
 
-    def evaluate_test_data(self, **model_kwargs):
-        test_results = self.apply_model(
-            self.final_model,
-            X = self.test_X, y = self.test_y,
-            data_name="test", **model_kwargs)  # lam value not actually used!
+    def evaluate_test_data(self):
+        test_results = self.final_model.apply_model(
+            X = self.test_X, y = self.test_y, data_name="test")
         print(pd.DataFrame(test_results).T)
 
 

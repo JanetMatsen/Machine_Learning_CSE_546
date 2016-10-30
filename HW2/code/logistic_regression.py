@@ -14,7 +14,7 @@ class LogisticRegression(ClassificationBase):
     """
     def __init__(self, X, y, eta0, lam, W=None, max_iter=10**6,
                  delta_percent=1e-3, verbose=False,
-                 test_X=None, test_Y=None): #
+                 test_X=None, test_y=None): #
         '''
         No bias!
         '''
@@ -135,6 +135,17 @@ class LogisticRegression(ClassificationBase):
 
             results_row['log loss percent change'] = neg_log_loss_percent_change
             one_val = pd.DataFrame(results_row)
+
+            # TODO: also find the log loss & 0/1 loss using test data.
+            # HW2 asks for us to plot the log loss of the test data (which
+            # we are't touching during training!)
+            test_results = \
+                pd.DataFrame(self.apply_model(X=self.test_X, y=self.test_y,
+                                              data_name = 'testing'))
+            t_columns = [c for c in test_results.columns
+                         if 'test' in c or 'lambda' == c]
+            one_val = pd.merge(one_val, test_results[t_columns])
+
             self.results = pd.concat([self.results, one_val])
 
             # TODO: these convergence steps aren't really tested!
@@ -177,7 +188,7 @@ class LogisticRegressionBinary(LogisticRegression):
                  max_iter=10**6, delta_percent=1e-3, verbose=False):
         self.binary = True
         # Stuff that would be in a base class:
-        self.X = X #sp.csc_matrix(X)
+        self.X = X
         self.N, self.d = self.X.shape
         # Check that the input y is really binary.
         assert np.array_equal(np.unique(y),np.array([0,1]))
@@ -212,7 +223,7 @@ class LogisticRegressionBinary(LogisticRegression):
         self.delta_percent = delta_percent
         self.results = pd.DataFrame()
         self.verbose=verbose
-
+        self.test_X = test_X
         self.test_y = test_y
 
     def get_weights(self):

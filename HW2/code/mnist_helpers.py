@@ -7,19 +7,25 @@ from classification_base import MNIST_PATH
 def prep_binary_classes(y, digit=2):
     return np.array([int(x==digit) for x in y])
 
-def mnist_training():
+def mnist_training(shuffled=True):
     mndata = MNIST(MNIST_PATH)
     train_ims, train_labels = mndata.load_training()
     train_X = np.array(train_ims)
     train_y = np.array(train_labels)
-    return train_X, train_y
+    if shuffled:
+        return shuffle(train_X, train_y)
+    else:
+        return train_X, train_y
 
-def mnist_testing():
+def mnist_testing(shuffled = True):
     mndata = MNIST(MNIST_PATH)
     test_ims, test_labels = mndata.load_testing()
     test_X = np.array(test_ims)
     test_y = np.array(test_labels)
-    return test_X, test_y
+    if shuffled:
+        return shuffle(test_X, test_y)
+    else:
+        return test_X, test_y
 
 def mnist_training_binary(num, shuffled=True):
     X, y = mnist_training()

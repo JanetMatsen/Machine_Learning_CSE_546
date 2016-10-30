@@ -1,6 +1,7 @@
-from math import log
+import copy
 import matplotlib.pyplot as plt
 import numpy as np
+import re
 import scipy.sparse as sp
 
 import pandas as pd
@@ -54,6 +55,9 @@ class ClassificationBase:
             Y = sp.csc_matrix(Y)
         self.Y = Y
         assert self.Y.shape == (self.N, self.C)
+
+    def copy(self):
+        return copy.copy(self)
 
     def get_weights(self):
         return self.W
@@ -118,6 +122,29 @@ class ClassificationBase:
             self.make_Y_from_y()
             assert self.Y.shape[0] == y.shape[0]
 
+    def apply_model(self, X, y, data_name):
+        """
+        Apply existing weights (for "base_model") to give predictions
+        on different X data.
+        """
+        # need a new model to do this.
+        new_model = self.copy()
+        new_model.replace_X_and_y(X, y)
+
+        assert new_model.X.shape == X.shape
+        assert new_model.N == X.shape[0]
+        if new_model.binary:
+            assert new_model.y.shape == (y.shape[0], )
+        else:
+            assert new_model.Y.shape[0] == y.shape[0]
+
+        # not training the new model this time!
+        results = new_model.results_row()
+        # rename column names from "training" to data_name
+        results = {re.sub("training", data_name, k): v
+                   for k, v in results.items()}
+        return results
+
     def plot_ys(self, x,y1, y2=None, ylabel=None):
         assert self.results is not None
 
@@ -138,13 +165,13 @@ class ClassificationBase:
             pass
         return fig
 
-    def plot_01_loss(self, ylabel = "fractional 0/1 loss", filename=None):
-        fig = self.plot_ys(x='iteration', y1="(0/1 loss)/N")
+    def plot_01_loss(self, ylabel="fractional 0/1 loss", filename=None):
+        fig = self.plot_ys(x='iteration', y1="(0/1 loss)/N", ylabel=ylabel)
         if filename:
             fig.savefig(filename + '.pdf')
 
-    def plot_log_loss(self, ylabel = "negative(log loss)", filename=None):
-        fig = self.plot_ys(x='iteration', y1="-(log loss)")
+    def plot_log_loss(self, ylabel="negative(log loss)", filename=None):
+        fig = self.plot_ys(x='iteration', y1="-(log loss)", ylabel=ylabel)
         if filename:
             fig.savefig(filename + '.pdf')
 
