@@ -153,7 +153,7 @@ class LogisticRegression(ClassificationBase):
             # TODO: these convergence steps aren't really tested!
             if neg_log_loss_percent_change > 0:
                 num_diverged_steps += 1
-            elif neg_log_loss_percent_change < -5 and num_diverged_steps == 0:
+            elif neg_log_loss_percent_change < -2 and num_diverged_steps == 0:
                 fast_convergence_steps += 1
             else:
                 num_diverged_steps = 0
