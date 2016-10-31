@@ -93,7 +93,8 @@ class HyperparameterExplorer:
 
         # Plot log loss vs time if applicable.
         if "log loss" in self.summary.columns:
-            m.plot_log_loss_normalized_and_eta()
+            m.plot_test_and_train_log_loss_during_fitting()
+            m.plot_test_and_train_01_loss_during_fitting()
 
     def best(self, value='model'):
         """
@@ -174,7 +175,8 @@ class HyperparameterExplorer:
         return closest_row['weights'].reset_index(drop=True)[0].copy()
 
     def plot_fits(self, df = None, x='lambda',
-                  y1=None, y2=None, filename=None, xlim=None, ylim=None):
+                  y1=None, y2=None, filename=None, xlim=None, ylim=None,
+                  logx=True):
         if df is None:
             df = self.summary
         if y1 == None:
@@ -183,10 +185,17 @@ class HyperparameterExplorer:
             y2 = self.training_score_name
         fig, ax = plt.subplots(1, 1, figsize=(4, 3))
         plot_data = df.sort(x)
-        plt.semilogx(plot_data[x], plot_data[y1],
-                    linestyle='--', marker='o', c='g')
-        plt.semilogx(plot_data[x], plot_data[y2],
-                     linestyle='--', marker='o', c='grey')
+        if logx:
+            plt.semilogx(plot_data[x], plot_data[y1],
+                        linestyle='--', marker='o', c='g')
+            plt.semilogx(plot_data[x], plot_data[y2],
+                         linestyle='--', marker='o', c='grey')
+        else:
+            plt.plot(plot_data[x], plot_data[y1],
+                         linestyle='--', marker='o', c='g')
+            plt.plot(plot_data[x], plot_data[y2],
+                         linestyle='--', marker='o', c='grey')
+
         plt.legend(loc='best')
         plt.xlabel(x)
         plt.ylabel(self.score_name)
@@ -200,9 +209,9 @@ class HyperparameterExplorer:
         if filename is not None:
             fig.savefig(filename + '.pdf')
 
-    def plot_best_fits(self, y1=None, y2=None):
+    def plot_best_fits(self, y1=None, y2=None, logx=True):
         df = self.best_results_for_each_lambda()
-        self.plot_fits(df=df, y1=y1, y2=y2, xlim=None, ylim=None)
+        self.plot_fits(df=df, y1=y1, y2=y2, xlim=None, ylim=None, logx=logx)
 
     def train_on_whole_training_set(self, max_iter=None, delta_percent=None):
         # get the best model conditions from the hyperparameter exploration,
