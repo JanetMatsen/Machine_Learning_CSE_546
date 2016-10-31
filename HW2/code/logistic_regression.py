@@ -181,28 +181,27 @@ class LogisticRegression(ClassificationBase):
        """
        return(new > old and np.log10(1.-old/new) > -sig_fig)
 
-    def plot_test_and_train_log_loss_during_fitting(self, filename=None):
+    def plot_test_and_train_log_loss_during_fitting(
+            self, filename=None, colors=['#756bb1', '#2ca25f']):
+
         train_y = "-(log loss)/N, training"
         test_y = "-(log loss)/N, testing"
 
-        fig = super(LogisticRegression, self).plot_ys(x='iteration',
-                                                      y1=train_y,
-                                                      y2=test_y,
-                                                      ylabel="normalized log loss",
-                                                      logx=False)
+        fig = super(LogisticRegression, self).plot_ys(
+            x='iteration', y1=train_y, y2=test_y, ylabel="normalized log loss",
+            logx=False, colors=colors)
         if filename is not None:
             fig.savefig(filename + '.pdf')
         return fig
 
-    def plot_test_and_train_01_loss_during_fitting(self, filename=None):
+    def plot_test_and_train_01_loss_during_fitting(
+            self, filename=None, colors=['#756bb1', '#2ca25f']):
         train_y = "training (0/1 loss)/N"
         test_y = "testing (0/1 loss)/N"
 
-        fig = super(LogisticRegression, self).plot_ys(x='iteration',
-                                                      y1=train_y,
-                                                      y2=test_y,
-                                                      label="normalized 0/1 loss",
-                                                      logx=False)
+        fig = super(LogisticRegression, self).plot_ys(
+            x='iteration', y1=train_y, y2=test_y, label="normalized 0/1 loss",
+            logx=False, colors=colors)
         if filename is not None:
             fig.savefig(filename + '.pdf')
         return fig
@@ -213,6 +212,7 @@ class LogisticRegressionBinary(LogisticRegression):
     """
     def __init__(self, X, y, test_X, test_y, eta0, lam, w=None, w0=None,
                  max_iter=10**6, delta_percent=1e-3, verbose=False):
+
         self.binary = True
         # Stuff that would be in a base class:
         self.X = X

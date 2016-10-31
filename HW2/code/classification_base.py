@@ -145,11 +145,12 @@ class ClassificationBase:
                    for k, v in results.items()}
         return results
 
-    def plot_ys(self, x,y1, y2=None, ylabel=None, logx=True):
+    def plot_ys(self, x,y1, y2=None, ylabel=None, logx=True, colors=None):
         assert self.results is not None
 
         fig, ax = plt.subplots(1, 1, figsize=(4, 3))
-        colors = ['c','b']
+        if colors is None:
+            colors = ['c','b']
         if logx:
             plt.semilogx(self.results[x], self.results[y1],
                          linestyle='--', marker='o',
