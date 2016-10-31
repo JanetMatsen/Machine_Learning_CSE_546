@@ -145,18 +145,27 @@ class ClassificationBase:
                    for k, v in results.items()}
         return results
 
-    def plot_ys(self, x,y1, y2=None, ylabel=None):
+    def plot_ys(self, x,y1, y2=None, ylabel=None, logx=True):
         assert self.results is not None
 
         fig, ax = plt.subplots(1, 1, figsize=(4, 3))
         colors = ['c','b']
-        plt.semilogx(self.results[x], self.results[y1],
-                     linestyle='--', marker='o',
-                     color=colors[1])
-        if y2:
-            plt.semilogx(self.results[x], self.results[y2],
+        if logx:
+            plt.semilogx(self.results[x], self.results[y1],
                          linestyle='--', marker='o',
-                         color=colors[3])
+                         color=colors[0])
+            if y2:
+                plt.semilogx(self.results[x], self.results[y2],
+                             linestyle='--', marker='o',
+                             color=colors[1])
+        else:
+            plt.plot(self.results[x], self.results[y1],
+                         linestyle='--', marker='o',
+                         color=colors[0])
+            if y2:
+                plt.semilogx(self.results[x], self.results[y2],
+                             linestyle='--', marker='o',
+                             color=colors[1])
         plt.legend(loc = 'best')
         plt.xlabel(x)
         if ylabel:

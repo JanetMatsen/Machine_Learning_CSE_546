@@ -23,7 +23,7 @@ class LogisticRegression(ClassificationBase):
         self.eta0 = eta0
         self.eta = eta0
         self.lam = lam
-        self.lam_norm = lam/np.linalg.norm(X) # np norm defaults to L2
+        self.lam_norm = lam/(np.linalg.norm(X)/self.N) # np norm defaults to L2
         self.max_iter = max_iter
         self.delta_percent = delta_percent
         self.iteration = 0
@@ -179,6 +179,31 @@ class LogisticRegression(ClassificationBase):
        """
        return(new > old and np.log10(1.-old/new) > -sig_fig)
 
+    def plot_test_and_train_log_loss_during_fitting(self, filename=None):
+        train_y = "-(log loss)/N, training"
+        test_y = "-(log loss)/N, testing"
+
+        fig = super(LogisticRegression, self).plot_ys(x='iteration',
+                                                      y1=train_y,
+                                                      y2=test_y,
+                                                      ylabel="normalized log loss",
+                                                      logx=False)
+        if filename is not None:
+            fig.savefig(filename + '.pdf')
+        return fig
+
+    def plot_test_and_train_01_loss_during_fitting(self, filename=None):
+        train_y = "training (0/1 loss)/N"
+        test_y = "testing (0/1 loss)/N"
+
+        fig = super(LogisticRegression, self).plot_ys(x='iteration',
+                                                      y1=train_y,
+                                                      y2=test_y,
+                                                      label="normalized 0/1 loss",
+                                                      logx=False)
+        if filename is not None:
+            fig.savefig(filename + '.pdf')
+        return fig
 
 class LogisticRegressionBinary(LogisticRegression):
     """
