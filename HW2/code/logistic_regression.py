@@ -28,6 +28,8 @@ class LogisticRegression(ClassificationBase):
         self.delta_percent = delta_percent
         self.iteration = 0
         self.verbose=verbose
+        self.test_X = test_X
+        self.test_y = test_y
 
     def apply_weights(self):
         """
