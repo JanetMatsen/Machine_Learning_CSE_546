@@ -13,8 +13,7 @@ class RidgeMulti(ClassificationBase):
     Train multiple ridge models.
     """
     def __init__(self, X, y, lam, W=None, verbose=False, sparse=True,
-                 test_X=None, test_y = None
-                 ):
+                 test_X=None, test_y = None):
         """
         test_X, test_y are for compatibility only, because the questions for
          other methods require knowing test data during fitting.
