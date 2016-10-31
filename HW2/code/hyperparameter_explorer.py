@@ -74,6 +74,8 @@ class HyperparameterExplorer:
             print("model didn't work..?")
         # Save the model number for so we can look up the model later
         outcome['model number'] = [self.num_models]
+        print('{}:{}'.format(self.training_score_name,
+                             outcome[self.training_score_name][0]))
 
         validation_results = m.apply_model(X=self.validation_X,
                                            y=self.validation_y,
@@ -158,16 +160,16 @@ class HyperparameterExplorer:
         closest_score = \
             best_scores[best_scores['lambda'] ==
                         closest_lambda][self.validation_score_name].reset_index(drop=True)[0]
-        # old_df[((old_df['C1'] > 0) & (old_df['C3'] < 20))]
+        print("returning best weights for lambda = {}.  "
+              "Corresponded to {} = {}".format(
+            closest_lambda, self.validation_score_name, closest_score))
+
         closest_row = \
             self.summary[(self.summary['lambda'] == closest_lambda) &
                          (self.summary[self.validation_score_name] ==
                           closest_score)]
 
         assert closest_row.shape[0] == 1
-        print("returning best weights for lambda = {}.  "
-              "Corresponded to {} = {}".format(
-            closest_lambda, self.validation_score_name, closest_score))
 
         return closest_row['weights'].reset_index(drop=True)[0].copy()
 
