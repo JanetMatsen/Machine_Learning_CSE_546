@@ -13,8 +13,7 @@ class RidgeMulti(ClassificationBase):
     Train multiple ridge models.
     """
     def __init__(self, X, y, lam, W=None, verbose=False, sparse=True,
-                 test_X=None, test_y = None
-                 ):
+                 test_X=None, test_y = None, kernelized=False):
         """
         test_X, test_y are for compatibility only, because the questions for
          other methods require knowing test data during fitting.
@@ -29,6 +28,7 @@ class RidgeMulti(ClassificationBase):
         self.W = None # don't want to have W before solving!
         self.matrix_work = None
         self.verbose = verbose
+        self.kernelized = kernelized
 
     def get_weights(self):
         if self.sparse:
@@ -37,20 +37,25 @@ class RidgeMulti(ClassificationBase):
             return self.W
 
     def apply_weights(self):
-        # Check that weights are the right dims.
-
+        if self.verbose:
+            print("Apply weights to H(X): {}".format(time.asctime(time.localtime(time.time()))))
         # Apply weights
         if self.sparse:
-            assert type(self.W) == sp.csc_matrix, \
+            assert type(self.W) == sp.csc_matrix or type(self.W) == sp.csr_matrix, \
                 "type of W is {}".format(type(self.W))
             assert type(self.X) == sp.csc_matrix, \
                 "type of W is {}".format(type(self.X))
+
             prod = self.X.dot(self.W)
+            if self.verbose:
+                print("Done applying weights to H(X): {}".format(time.asctime(time.localtime(time.time()))))
             if type(prod) == sp.csc_matrix:
                 return prod.toarray()
             else:
                 return prod
         else:
+            if self.verbose:
+                print("Done applying weights to H(X): {}".format(time.asctime(time.localtime(time.time()))))
             return self.X.dot(self.W)
 
     def optimize(self):
@@ -92,11 +97,44 @@ class RidgeMulti(ClassificationBase):
         assert self.W.shape == (self.d, self.C)
         return self.W
 
+    def kernelized_optimize(self):
+        # fact: H^T(HH^T + lambda*I_N) == (lambda*I_d + H^TH)H^T
+        # instead of inverting a dxd matrix, we invert an nxn matrix.
+        # So our ridge formula becomes:
+        # (lambda*I_d + H^TH)^(-1)H^T = H^T(HH^T + lambdaI_N)^(-1)
+        if self.sparse:
+            piece_to_invert = self.X.dot(self.X.T) + sp.identity(self.N)*self.lam 
+        else:
+            piece_to_invert = self.X.dot(self.X.T) + np.identity(self.N)*self.lam 
+        assert piece_to_invert.shape == (self.N, self.N) # yay!
+
+        # invert this NxN matrix.
+        if self.verbose:
+            print("invert matrix:")
+            print("time: {}".format(time.asctime(time.localtime(time.time()))))
+        if self.sparse:
+            inverted_piece = splin.inv(piece_to_invert)
+        else:
+            inverted_piece = np.linalg.inv(piece_to_invert)
+        if self.verbose:
+            print("done inverting via kernel trick at time: {}".format(time.asctime(time.localtime(time.time()))))
+
+        # dot with H^T.dot(y)
+        if self.verbose:
+            print("dot with H^T at time: {}".format(time.asctime(time.localtime(time.time()))))
+        self.W = self.X.T.dot(inverted_piece).dot(self.Y)
+        if self.verbose:
+            print("done dotting with H^T at time: {}".format(time.asctime(time.localtime(time.time()))))
+        assert self.W.shape == (self.d, self.C)
+
     def predict(self):
         if self.verbose:
-            print("predict:")
+            print("prediction time.")
         if self.W is None:
-            self.optimize()
+            if self.kernelized:
+                self.kernelized_optimize()
+            else:
+                self.optimize()
 
         Yhat = self.apply_weights()
         assert type(Yhat) == np.ndarray
@@ -127,6 +165,7 @@ class RidgeMulti(ClassificationBase):
             "lambda":[self.lam],
             "training SSE":[self.sse()],
             "training RMSE":[self.rmse()],
+            "kernelized solvin":[self.kernelized]
             }
         results_row.update(more_details)
         return results_row
@@ -211,8 +250,12 @@ class RidgeBinary(ClassificationBase):
         self.results = pd.DataFrame(self.results_row())
 
     def predict(self, threshold):
+        if self.verbose:
+            print("dot X with W to make predictions.  {}".format(time.asctime(time.localtime(time.time()))))
         # TODO: having a default cutoff is a terrible idea!
         Yhat = self.X.dot(self.w)
+        if self.verbose:
+            print("done dotting.  {}".format(time.asctime(time.localtime(time.time()))))
         classes = np.zeros(self.N)
         classes[Yhat > threshold] = 1
         return classes
