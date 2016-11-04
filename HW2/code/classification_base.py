@@ -222,6 +222,15 @@ class ClassificationBase:
                                  y2='eta',
                                  pandas=pandas)
 
+    @staticmethod
+    def shuffle(X, y):
+        shuffler = np.arange(len(y))
+        np.random.shuffle(shuffler)
+        X = X.copy()[shuffler, :] # todo: not sure if .copy() is needed.
+        y = y.copy()[shuffler]
+        return X, y
+
+
 
 class ModelFitExcpetion(Exception):
     def __init__(self, message):

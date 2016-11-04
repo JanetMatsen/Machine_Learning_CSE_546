@@ -28,13 +28,14 @@ class LogisticRegression(ClassificationBase):
         self.max_iter = max_iter
         self.delta_percent = delta_percent
         self.iteration = 0
-        self.verbose=verbose
+        self.verbose = verbose
         self.test_X = test_X
         self.test_y = test_y
         self.batch_size = batch_size
         assert progress_monitoring_freq%batch_size == 0, \
             "need to monitor at frequencies that are multiples of the " \
             "mini-batch size."
+        print("Remember not to check the log los too often.  Expensive!")
         self.progress_monitoring_freq = progress_monitoring_freq
         self.num_passes_through_N_pts = 0
         self.points_sampled = 0
@@ -131,14 +132,6 @@ class LogisticRegression(ClassificationBase):
         results_row.update(more_details)
         return results_row
 
-    @staticmethod
-    def shuffle(X, y):
-        shuffler = np.arange(len(y))
-        np.random.shuffle(shuffler)
-        X = X.copy()[shuffler, :] # todo: not sure if .copy() is needed.
-        y = y.copy()[shuffler]
-        return X, y
-
     def record_status(self):
         results_row = self.results_row()
         results_row['minibatches tested'] = [self.num_passes_through_N_pts]
@@ -156,29 +149,38 @@ class LogisticRegression(ClassificationBase):
 
         num_diverged_steps = 0
         fast_convergence_steps = 0
-        X, Y = self.shuffle(self.X, self.Y)
 
         # Step until converged
         for s in range(1, self.max_iter+1):
+            if self.verbose:
+                print('loop through all the data. {}th time'.format(s))
+            # Shuffle each time we loop through the entire data set.
+            X, Y = self.shuffle(self.X, self.Y)
 
             num_pts = 0  # initial # of points seen in this pass through N pts
             # record status of log_loss before loop.
+
+            # Don't compute loss every time; expensive!
+            # TODO: move this into the loop below and get log_loss from the
+            # Pandas result so I don't compute it extra times.  (Expensive!)
             old_neg_log_loss_norm = -self.log_loss(self.X, self.Y)/self.N
 
             # loop over ~all of the data points in little batches.
             while num_pts < self.N:
                 idx_start = 0
                 idx_stop = self.batch_size
+                # TODO: what happens if you split training data and you ask fo'
+                # more data then there is?   
                 X_sample = X[idx_start:idx_stop, ]
                 Y_sample = Y[idx_start:idx_stop, ]
                 self.step(X_sample, Y_sample)
                 num_pts += self.batch_size
                 self.points_sampled += self.batch_size
 
+                # Take the pulse once and a while, but not too much.
                 if self.points_sampled%self.progress_monitoring_freq == 0:
-                    #if self.verbose:
-                    #    print("At point {}; record status.".format(
-                    #        self.points_sampled))
+                    # TODO: move all log-loss checking down here. Break out
+                    # another function like .assess_progress()?
                     training_results = self.record_status()
                     # print(self.log_loss(self.X, self.Y))
                     training_results = pd.DataFrame(training_results)
@@ -205,8 +207,7 @@ class LogisticRegression(ClassificationBase):
 
             #results_row['log loss % change'] = neg_log_loss_percent_change
 
-            if neg_log_loss_percent_change > 0:
-                num_diverged_steps += 1
+            if neg_log_loss_percent_change > 0: num_diverged_steps += 1
             elif neg_log_loss_percent_change < -2 and num_diverged_steps == 0:
                 fast_convergence_steps += 1
             else:
@@ -221,9 +222,11 @@ class LogisticRegression(ClassificationBase):
             if abs(neg_log_loss_percent_change) < self.delta_percent:
                 print("Loss optimized.  Old/N: {}, new/N:{}. Eta: {}".format(
                     old_neg_log_loss_norm, new_neg_log_loss_norm, self.eta))
+                # TODO: sample status a final time?  Check if it was just sampled?
                 break
 
             if s == self.max_iter:
+                # TODO: sample status a final time?  Check if it was just sampled?
                 print('max iterations ({}) reached.'.format(self.max_iter))
 
         print('final normalized training -(log loss): {}'.format(

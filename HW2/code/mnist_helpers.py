@@ -39,7 +39,6 @@ def mnist_testing_binary(num):
 
 def shuffle(X, y):
     shuffler = np.arange(len(y))
-    print(shuffler)
     np.random.shuffle(shuffler)
     X = X[shuffler, :]
     y = y[shuffler]
