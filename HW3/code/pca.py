@@ -16,25 +16,41 @@ class Pca:
         self.verbose = verbose
 
     def calc_sigma(self):
+        """
+        sigma = covariance matrix.
+        """
         sigma = np.zeros(shape=(self.d, self.d))
         num_done = 0
         if self.verbose:
             print("Iterate over x_i in X to get Sigma: {}".format(
                 time.asctime(time.localtime(time.time()))))
         for i in range(self.N):
-            xi = self.X[i,:]
+            xi = np.array([self.X[i,:]])
+            if self.verbose:
+                print("xi: {}".format(xi))
             #print("xi for i={}: {}".format(i, xi))
             dot_prod = xi.T.dot(xi)
+            if self.verbose:
+                print("dot_prod: {}".format(dot_prod))
             #print("dot shape: {}".format(dot_prod.shape))
             #print("dot: {}".format(dot_prod))
             sigma = np.add(sigma, dot_prod)
+            if self.verbose:
+                print("sigma: \n{}".format(sigma))
             num_done += 1
             if num_done%100 == 0:
                 sys.stdout.write(".")
-        self.sigma = sigma/1./self.N
+        if self.verbose:
+            print("sigma before dividing by N = {}".format(self.N))
+            print(sigma)
+        self.sigma = sigma*1./self.N
+        if self.verbose:
+            print("sigma after dividing by N = {}".format(self.N))
+            print(self.sigma)
         if self.verbose:
             print("Done iterating to get Sigma: {}".format(
                 time.asctime(time.localtime(time.time()))))
+            print("Sigma: \n{}".format(self.sigma))
 
     def calc_eigen_stuff(self):
         self.calc_sigma()
@@ -73,7 +89,8 @@ class Pca:
             print('vector sum: {}'.format(vector_sum))
         for i in range(1, len(eigenvalues)):
             numerator_sum = np.sum(eigenvalues[0:i])
-            print(numerator_sum)
+            if self.verbose:
+                print(numerator_sum)
             row = {'k':[i],
                    'fractional reconstruction': [1-numerator_sum/vector_sum]}
             row = pd.DataFrame(row)
