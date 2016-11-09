@@ -14,7 +14,7 @@ class LogisticRegression(ClassificationBase):
     No bias
     """
     def __init__(self, X, y, eta0, lam, W=None,
-                 max_iter=10**6, # of times passing through N pts
+                 max_steps=10**6, # of times passing through N pts
                  batch_size = 100,
                  progress_monitoring_freq=15000,
                  delta_percent=1e-3, verbose=False,
@@ -25,7 +25,7 @@ class LogisticRegression(ClassificationBase):
         self.eta = eta0
         self.lam = lam
         self.lam_norm = lam/(np.linalg.norm(X)/self.N) # np norm defaults to L2
-        self.max_iter = max_iter
+        self.max_steps = max_steps
         self.delta_percent = delta_percent
         self.steps = 0
         self.verbose = verbose
@@ -120,7 +120,7 @@ class LogisticRegression(ClassificationBase):
             "log loss": [self.log_loss(self.X, self.Y)],
             "-(log loss), training": [neg_log_loss],
             "-(log loss)/N, training": [neg_log_loss/self.N],
-            "iteration": [self.steps],
+            "step": [self.steps],
             "batch size": [self.batch_size],
             "# of passes through N pts": [self.num_passes_through_N_pts]
             }
@@ -146,7 +146,7 @@ class LogisticRegression(ClassificationBase):
         fast_convergence_steps = 0
 
         # Step until converged
-        for s in range(1, self.max_iter+1):
+        for s in range(1, self.max_steps+1):
             if self.verbose:
                 print('loop through all the data. {}th time'.format(s))
             # Shuffle each time we loop through the entire data set.
@@ -220,9 +220,9 @@ class LogisticRegression(ClassificationBase):
                 # TODO: sample status a final time?  Check if it was just sampled?
                 break
 
-            if s == self.max_iter:
+            if s == self.max_steps:
                 # TODO: sample status a final time?  Check if it was just sampled?
-                print('max iterations ({}) reached.'.format(self.max_iter))
+                print('max steps ({}) reached.'.format(self.max_steps))
 
         print('final normalized training -(log loss): {}'.format(
             new_neg_log_loss_norm))
@@ -242,7 +242,7 @@ class LogisticRegression(ClassificationBase):
         test_y = "-(log loss)/N, testing"
 
         fig = super(LogisticRegression, self).plot_ys(
-            x='iteration', y1=train_y, y2=test_y, ylabel="normalized log loss",
+            x='step', y1=train_y, y2=test_y, ylabel="normalized log loss",
             logx=False, colors=colors)
         if filename is not None:
             fig.savefig(filename + '.pdf')
@@ -254,7 +254,7 @@ class LogisticRegression(ClassificationBase):
         test_y = "testing (0/1 loss)/N"
 
         fig = super(LogisticRegression, self).plot_ys(
-            x='iteration', y1=train_y, y2=test_y, ylabel="normalized 0/1 loss",
+            x='step', y1=train_y, y2=test_y, ylabel="normalized 0/1 loss",
             logx=False, colors=colors)
         if filename is not None:
             fig.savefig(filename + '.pdf')

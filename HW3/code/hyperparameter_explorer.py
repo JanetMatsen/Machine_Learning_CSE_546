@@ -213,7 +213,7 @@ class HyperparameterExplorer:
         df = self.best_results_for_each_lambda()
         self.plot_fits(df=df, y1=y1, y2=y2, xlim=None, ylim=None, logx=logx)
 
-    def train_on_whole_training_set(self, max_iter=None, delta_percent=None):
+    def train_on_whole_training_set(self, max_steps=None, delta_percent=None):
         # get the best model conditions from the hyperparameter exploration,
         # and print it to ensure the user's hyperparameters match the best
         # models's.:
@@ -226,8 +226,8 @@ class HyperparameterExplorer:
         # replace the smaller training sets with the whole training set.
         self.final_model.replace_X_and_y(self.all_training_X,
                                          self.all_training_y)
-        if max_iter:
-            self.final_model.max_iter = max_iter
+        if max_steps:
+            self.final_model.max_steps = max_steps
         if delta_percent:
             self.delta_percent = delta_percent
 

@@ -62,7 +62,7 @@ class ClassificationBase:
     def get_weights(self):
         return self.W
 
-    def predict(self):
+    def predict(self, X=None, Y=None):
         raise NotImplementedError
 
     def loss_01(self):
@@ -176,13 +176,17 @@ class ClassificationBase:
             pass
         return fig
 
-    def plot_01_loss(self, ylabel="fractional 0/1 loss", filename=None):
-        fig = self.plot_ys(x='iteration', y1="(0/1 loss)/N", ylabel=ylabel)
+    def plot_01_loss(self, y="(0/1 loss)/N", ylabel="fractional 0/1 loss",
+                     filename=None):
+        # TODO: break into another class that's IterativeModel
+        fig = self.plot_ys(x='step', y1=y, ylabel=ylabel)
         if filename:
             fig.savefig(filename + '.pdf')
 
-    def plot_log_loss(self, ylabel="negative(log loss)", filename=None):
-        fig = self.plot_ys(x='iteration', y1="-(log loss)", ylabel=ylabel)
+    def plot_log_loss(self, y="-(log loss)", ylabel="negative(log loss)",
+                      filename=None):
+        # TODO: break into another class that's IterativeModel
+        fig = self.plot_ys(x='step', y1=y, ylabel=ylabel)
         if filename:
             fig.savefig(filename + '.pdf')
 
@@ -211,13 +215,13 @@ class ClassificationBase:
         plt.tight_layout()
 
     def plot_log_loss_and_eta(self, pandas=True):
-            self.plot_2_subplots(x='iteration',
+            self.plot_2_subplots(x='step',
                                  y1='-(log loss), training',
                                  y2='eta',
                                  pandas=pandas)
 
     def plot_log_loss_normalized_and_eta(self, pandas=True):
-            self.plot_2_subplots(x='iteration',
+            self.plot_2_subplots(x='step',
                                  y1='-(log loss)/N, training',
                                  y2='eta',
                                  pandas=pandas)

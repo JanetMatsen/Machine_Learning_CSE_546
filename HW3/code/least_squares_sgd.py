@@ -13,8 +13,8 @@ class LeastSquaresSGD(ClassificationBase):
     Multi-class classifications, with stochastic gradient descent.
     No bias
     """
-    def __init__(self, X, y, eta0, lam, W=None,
-                 max_iter=10**6, # of times passing through N pts
+    def __init__(self, X, y, eta0, W=None,
+                 max_steps=10**6, # of times passing through N pts
                  batch_size = 100,
                  progress_monitoring_freq=15000,
                  delta_percent=1e-3, verbose=False,
@@ -23,12 +23,12 @@ class LeastSquaresSGD(ClassificationBase):
         super(LeastSquaresSGD, self).__init__(X=X, y=y, W=W)
         self.eta0 = eta0
         self.eta = eta0
-        self.lam = lam
-        self.lam_norm = lam/(np.linalg.norm(X)/self.N) # np norm defaults to L2
-        self.max_iter = max_iter
+        self.max_steps = max_steps
         self.delta_percent = delta_percent
         self.steps = 0
         self.verbose = verbose
+        if test_X is None and test_y is None:
+            print("No test data was provided.")
         self.test_X = test_X
         self.test_y = test_y
         self.batch_size = batch_size
@@ -59,31 +59,38 @@ class LeastSquaresSGD(ClassificationBase):
         n, d = X.shape  # n and d of the sub-sample of X
         assert n == Y.shape[0]
         # TODO: be positive I use W for all the points so far.
-        gradient = (1./n)*X.T.dot(Y - X.dot(self.W))
-        assert gradient.shape == self.d, self.C
+        gradient = -(1./n)*X.T.dot(Y - X.dot(self.W))
+        assert gradient.shape == (self.d, self.C)
 
         # TODO: do I scale eta by N still?
-        self.W += - (self.eta/n)*gradient
+        # TODO: subtract the gradient for grad descent (?)
+        self.W += -(self.eta/n)*gradient
         assert self.W.shape == (self.d ,self.C), \
             "shape of W is {}".format(self.W.shape)
         self.steps += 1
 
-    def predict(self, X, Y):
+    def calc_Yhat(self, X, Y):
         """
-        Produce an (N by 1) array of the most probable classes for each point
+        Produce an (NxC) array of classes predictions.
         """
         Yhat = X.dot(self.W)
-        assert Yhat.shape == X.shape[0], self.C
-        # THIS ASSUMES the classifiers are in order: 0th column of the
-        # probabilities corresponds to label = 0, ..., 9th col is for 9.
+        assert Yhat.shape == (X.shape[0], self.C)
+        return Yhat
+
+    def predict(self):
+        """
+        Predict for the entire X matrix.  We only calc 0/1 loss on whole set.
+        :return:
+        """
+        Yhat = self.calc_Yhat(self.X, self.Y)
         classes = np.argmax(Yhat, axis=1)
         return classes
 
     def square_loss(self, X, Y):
-        predictions = self.predict(X, Y)
-        errors = Y - predictions
+        Yhat = self.calc_Yhat(X, Y)
+        errors = Y - Yhat
         # element-wise squaring:
-        errors_squared = np.mulitply(errors, errors)
+        errors_squared = np.multiply(errors, errors)
         return errors_squared.sum()
 
     def shrink_eta(self, s, s_exp=0.5):
@@ -101,14 +108,12 @@ class LeastSquaresSGD(ClassificationBase):
         # append on logistic regression-specific results
         square_loss = self.square_loss(self.X, self.Y)
         more_details = {
-            "lambda":[self.lam],
-            "lambda normalized":[self.lam_norm],
             "eta0":[self.eta0],
             "eta": [self.eta],  # learning rate
             "square loss": [self.square_loss(self.X, self.Y)],
-            "-(square loss), training": [square_loss],
-            "-(square loss)/N, training": [square_loss/self.N],
-            "steps": [self.steps],
+            "(square loss), training": [square_loss],
+            "(square loss)/N, training": [square_loss/self.N],
+            "step": [self.steps],
             "batch size": [self.batch_size],
             "# of passes through N pts": [self.num_passes_through_N_pts]
             }
@@ -121,6 +126,10 @@ class LeastSquaresSGD(ClassificationBase):
         return results_row
 
     def assess_model_on_test_data(self):
+        """
+        Note: this has nothing to do with model fitting.
+        It is only for reporting and gaining intuition.
+        """
         test_results = pd.DataFrame(
             self.apply_model(X=self.test_X, y=self.test_y,
                              data_name = 'testing'))
@@ -129,12 +138,11 @@ class LeastSquaresSGD(ClassificationBase):
         return pd.DataFrame(test_results[t_columns])
 
     def run(self):
-
         num_diverged_steps = 0
         fast_convergence_steps = 0
 
         # Step until converged
-        for s in range(1, self.max_iter+1):
+        for s in range(1, self.max_steps+1):
             if self.verbose:
                 print('loop through all the data. {}th time'.format(s))
             # Shuffle each time we loop through the entire data set.
@@ -146,7 +154,7 @@ class LeastSquaresSGD(ClassificationBase):
             # Don't compute loss every time; expensive!
             # TODO: move this into the loop below and get square_loss from the
             # Pandas result so I don't compute it extra times.  (Expensive!)
-            old_square_loss_norm = -self.square_loss(self.X, self.Y)/self.N
+            old_square_loss_norm = self.square_loss(self.X, self.Y)/self.N
 
             # loop over ~all of the data points in little batches.
             while num_pts < self.N:
@@ -154,22 +162,22 @@ class LeastSquaresSGD(ClassificationBase):
                 idx_stop = self.batch_size
                 # TODO: what happens if you split training data and you ask fo'
                 # more data then there is?   
-                X_sample = X[idx_start:idx_stop, ]
+                X_sample = X[idx_start:idx_stop, ] # works even if you ask for too many rows.
                 Y_sample = Y[idx_start:idx_stop, ]
                 self.step(X_sample, Y_sample)
-                num_pts += self.batch_size
-                self.points_sampled += self.batch_size
+                num_pts += X.shape[0]
+                self.points_sampled += num_pts
 
                 # Take the pulse once and a while, but not too much.
                 if self.points_sampled%self.progress_monitoring_freq == 0:
                     # TODO: move all log-loss checking down here. Break out
                     # another function like .assess_progress()?
-                    training_results = self.record_status()
+                    row_results = pd.DataFrame(self.record_status())
                     # print(self.square_loss(self.X, self.Y))
-                    training_results = pd.DataFrame(training_results)
                      # also find the square loss & 0/1 loss using test data.
-                    test_results = self.assess_model_on_test_data()
-                    row_results = pd.merge(training_results, test_results)
+                    if (self.test_X is not None) and (self.test_y is not None):
+                        test_results = self.assess_model_on_test_data()
+                        row_results = pd.merge(row_results, test_results)
                     self.results = pd.concat([self.results, row_results])
 
             s+=1
@@ -208,9 +216,9 @@ class LeastSquaresSGD(ClassificationBase):
                 # TODO: sample status a final time?  Check if it was just sampled?
                 break
 
-            if s == self.max_iter:
+            if s == self.max_steps:
                 # TODO: sample status a final time?  Check if it was just sampled?
-                print('max iterations ({}) reached.'.format(self.max_iter))
+                print('max steps ({}) reached.'.format(self.max_steps))
 
         print('final normalized training (square loss): {}'.format(
             new_square_loss_norm))
@@ -223,6 +231,16 @@ class LeastSquaresSGD(ClassificationBase):
        """
        return(new > old and np.log10(1.-old/new) > -sig_fig)
 
+    def plot_01_loss(self, filename=None):
+        super(LeastSquaresSGD, self).plot_01_loss(y="training (0/1 loss)/N",
+                                                  filename=filename)
+
+    def plot_square_loss(self, filename=None):
+        fig = self.plot_ys(x='step', y1="(square loss)/N, training",
+                           ylabel="(square loss)/N")
+        if filename:
+            fig.savefig(filename + '.pdf')
+
     def plot_test_and_train_square_loss_during_fitting(
             self, filename=None, colors=['#756bb1', '#2ca25f']):
 
@@ -230,7 +248,7 @@ class LeastSquaresSGD(ClassificationBase):
         test_y = "(square loss)/N, testing"
 
         fig = super(LeastSquaresSGD, self).plot_ys(
-            x='iteration', y1=train_y, y2=test_y,
+            x='step', y1=train_y, y2=test_y,
             ylabel="normalized square loss",
             logx=False, colors=colors)
         if filename is not None:
@@ -243,7 +261,7 @@ class LeastSquaresSGD(ClassificationBase):
         test_y = "testing (0/1 loss)/N"
 
         fig = super(LeastSquaresSGD, self).plot_ys(
-            x='iteration', y1=train_y, y2=test_y, ylabel="normalized 0/1 loss",
+            x='step', y1=train_y, y2=test_y, ylabel="normalized 0/1 loss",
             logx=False, colors=colors)
         if filename is not None:
             fig.savefig(filename + '.pdf')
