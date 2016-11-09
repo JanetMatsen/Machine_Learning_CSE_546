@@ -27,7 +27,7 @@ class LogisticRegression(ClassificationBase):
         self.lam_norm = lam/(np.linalg.norm(X)/self.N) # np norm defaults to L2
         self.max_iter = max_iter
         self.delta_percent = delta_percent
-        self.iteration = 0
+        self.steps = 0
         self.verbose = verbose
         self.test_X = test_X
         self.test_y = test_y
@@ -85,11 +85,6 @@ class LogisticRegression(ClassificationBase):
 
         return np.log(probabilities).sum()
 
-    def grad_desc(self):
-        # break data into chunks:
-        if self.batch_size == self.N:
-            self.step(self.X, self.Y)
-
     def step(self, X, Y):
         """
         Update the weights and bias
@@ -103,7 +98,7 @@ class LogisticRegression(ClassificationBase):
         self.W += (self.eta/self.N)*(-self.lam_norm*self.W + X.T.dot(E)/n)
         assert self.W.shape == (self.d ,self.C), \
             "shape of W is {}".format(self.W.shape)
-        self.iteration += 1
+        self.steps += 1
 
     def shrink_eta(self, s, s_exp=0.5):
 
@@ -125,7 +120,7 @@ class LogisticRegression(ClassificationBase):
             "log loss": [self.log_loss(self.X, self.Y)],
             "-(log loss), training": [neg_log_loss],
             "-(log loss)/N, training": [neg_log_loss/self.N],
-            "iteration": [self.iteration],
+            "iteration": [self.steps],
             "batch size": [self.batch_size],
             "# of passes through N pts": [self.num_passes_through_N_pts]
             }
