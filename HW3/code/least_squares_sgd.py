@@ -13,7 +13,7 @@ class LeastSquaresSGD(ClassificationBase):
     Multi-class classifications, with stochastic gradient descent.
     No bias
     """
-    def __init__(self, X, y, eta0, W=None,
+    def __init__(self, X, y, eta0=None, W=None,
                  max_steps=10**6, # of times passing through N pts
                  batch_size = 100,
                  progress_monitoring_freq=15000,
@@ -21,8 +21,6 @@ class LeastSquaresSGD(ClassificationBase):
                  test_X=None, test_y=None): #
         # call the base class's methods first
         super(LeastSquaresSGD, self).__init__(X=X, y=y, W=W)
-        self.eta0 = eta0
-        self.eta = eta0
         self.max_steps = max_steps
         self.delta_percent = delta_percent
         self.steps = 0
@@ -35,10 +33,47 @@ class LeastSquaresSGD(ClassificationBase):
         assert progress_monitoring_freq%batch_size == 0, \
             "need to monitor at frequencies that are multiples of the " \
             "mini-batch size."
-        print("Remember not to check the log los too often.  Expensive!")
+        print("Remember not to check the log loss too often.  Expensive!")
         self.progress_monitoring_freq = progress_monitoring_freq
         self.num_passes_through_N_pts = 0
         self.points_sampled = 0
+        self.converged = False # Set True if converges.
+        if eta0 is None:
+            self.eta0 = self.find_good_learning_rate()
+        else:
+            self.eta0 = eta0
+        self.eta = self.eta0
+
+    def find_good_learning_rate(self, starting_eta0=0.01):
+        eta0 = starting_eta0
+        change_factor = 10
+        passed = True
+        while passed is True:
+            try:
+                # increse eta0 until we see divergence
+                eta0 = eta0*change_factor
+                print('testing eta0 = {}'.format(eta0))
+                # Test high learning rates until the model diverges.
+                model = self.copy()
+                # reset weights (can't assert!)
+                model.W = np.zeros(model.W.shape)
+                model.eta0 = eta0
+                model.eta = eta0
+                model.max_steps = 101 # make sure it fails pretty fast.
+                model.run()
+                if model.steps < model.max_steps and model.converged == False:
+                    passed = False
+                # If that passed without exception, passed = True
+            except:
+                passed = False
+        assert eta0 != starting_eta0, "\n eta0 didn't change; start lower"
+        print("Exploration for good eta0 started at {}; stopped passing when "
+              "eta0  grew to {}".format(starting_eta0, eta0))
+        # return an eta almost as high as the biggest one one that
+        # didn't cause divergence
+        # todo: he says dividing by 2 works.  I'm getting bouncy w/o.
+        self.eta0 = eta0/4
+        return eta0/4
 
     def apply_weights(self, X):
         """
@@ -64,6 +99,7 @@ class LeastSquaresSGD(ClassificationBase):
 
         # TODO: do I scale eta by N still?
         # TODO: subtract the gradient for grad descent (?)
+        assert self.eta is not None
         self.W += -(self.eta/n)*gradient
         assert self.W.shape == (self.d ,self.C), \
             "shape of W is {}".format(self.W.shape)
@@ -134,7 +170,7 @@ class LeastSquaresSGD(ClassificationBase):
             self.apply_model(X=self.test_X, y=self.test_y,
                              data_name = 'testing'))
         t_columns = [c for c in test_results.columns
-                     if 'test' in c or 'lambda' == c]
+                     if 'test' in c or 'step' == c]
         return pd.DataFrame(test_results[t_columns])
 
     def run(self):
@@ -204,13 +240,16 @@ class LeastSquaresSGD(ClassificationBase):
             else:
                 num_diverged_steps = 0
             if num_diverged_steps == 10:
-                raise ModelFitExcpetion("square loss grew 10 times in a row!")
+                print("\nWarning: model diverged 10 steps in a row.")
+            elif num_diverged_steps == 100:
+                raise ModelFitExcpetion("\nSquare loss grew 100 times in a row!")
 
             assert not self.has_increased_significantly(
                 old_square_loss_norm, new_square_loss_norm),\
                 "Normalized loss: {} --> {}".format(
                     old_square_loss_norm, new_square_loss_norm)
             if abs(square_loss_percent_change) < self.delta_percent:
+                self.converged = True # flag that it converged.
                 print("Loss optimized.  Old/N: {}, new/N:{}. Eta: {}".format(
                     old_square_loss_norm, new_square_loss_norm, self.eta))
                 # TODO: sample status a final time?  Check if it was just sampled?
@@ -218,7 +257,7 @@ class LeastSquaresSGD(ClassificationBase):
 
             if s == self.max_steps:
                 # TODO: sample status a final time?  Check if it was just sampled?
-                print('max steps ({}) reached.'.format(self.max_steps))
+                print('\n!!! Max steps ({}) reached. !!!'.format(self.max_steps))
 
         print('final normalized training (square loss): {}'.format(
             new_square_loss_norm))
@@ -235,7 +274,7 @@ class LeastSquaresSGD(ClassificationBase):
         super(LeastSquaresSGD, self).plot_01_loss(y="training (0/1 loss)/N",
                                                   filename=filename)
 
-    def plot_square_loss(self, filename=None):
+    def plot_square_loss(self, filename=None, last_steps=None):
         fig = self.plot_ys(x='step', y1="(square loss)/N, training",
                            ylabel="(square loss)/N")
         if filename:
