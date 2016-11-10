@@ -7,12 +7,14 @@ import pandas as pd
 
 
 class Pca:
-    def __init__(self, X, dimensions, verbose=False):
+    def __init__(self, X, dimensions, center=True, verbose=False):
         self.X = X
+        self.X_center = X.sum(axis=0)/X.shape[0]
         self.N, self.d = X.shape
         # dimensions = "dimensions which best reconstruct the data"
         self.dimensions = dimensions
         self.fractional_reconstruction_df = None
+        self.center = center
         self.verbose = verbose
 
     def calc_sigma(self):
@@ -21,11 +23,17 @@ class Pca:
         """
         sigma = np.zeros(shape=(self.d, self.d))
         num_done = 0
+        if self.center:
+            X = self.X - self.X_center
+        else:
+            X = self.X
+
         if self.verbose:
             print("Iterate over x_i in X to get Sigma: {}".format(
                 time.asctime(time.localtime(time.time()))))
+        # Build up the covariance matrix.
         for i in range(self.N):
-            xi = np.array([self.X[i,:]])
+            xi = np.array([X[i,:]])
             if self.verbose:
                 print("xi: {}".format(xi))
             #print("xi for i={}: {}".format(i, xi))
@@ -119,20 +127,19 @@ class Pca:
             title = "Q-1-2-2"
         plt.title(title)
         plt.tight_layout()
-        fig.savefig("Q-1-2-2.pdf")
+        fig.savefig("../figures/Q-1-2-2.pdf")
         return fig
 
     def save_sigma(self, filename):
         np.save(filename + '.npy', self.sigma)
 
 
-def load_old_sigma(filename):
-    return np.load(filename)
-
-def reattach_sigma(pca_object, filename):
-    pca_object.sigma = load_old_sigma(filename)
-
-
-
-
+def make_image(data, path=None):
+    plt.figure(figsize=(1,1))
+    p=plt.imshow(data.reshape(28, 28), origin='upper')
+    p.set_cmap('gray_r')
+    plt.axis('off')
+    if path is not None:
+        plt.savefig(path)
+        plt.close()
 
