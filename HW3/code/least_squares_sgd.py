@@ -44,9 +44,10 @@ class LeastSquaresSGD(ClassificationBase):
             self.eta0 = eta0
         self.eta = self.eta0
 
-    def find_good_learning_rate(self, starting_eta0=0.01):
+    def find_good_learning_rate(self, starting_eta0=0.001,
+                                divergence_steps_max=10):
         eta0 = starting_eta0
-        change_factor = 10
+        change_factor = 5
         passed = True
         while passed is True:
             try:
@@ -60,7 +61,7 @@ class LeastSquaresSGD(ClassificationBase):
                 model.eta0 = eta0
                 model.eta = eta0
                 model.max_steps = 101 # make sure it fails pretty fast.
-                model.run()
+                model.run(divergence_steps_max=divergence_steps_max)
                 if model.steps < model.max_steps and model.converged == False:
                     passed = False
                 # If that passed without exception, passed = True
@@ -72,20 +73,14 @@ class LeastSquaresSGD(ClassificationBase):
         # return an eta almost as high as the biggest one one that
         # didn't cause divergence
         # todo: he says dividing by 2 works.  I'm getting bouncy w/o.
-        self.eta0 = eta0/4
-        return eta0/4
+        self.eta0 = eta0/change_factor
+        return self.eta0
 
     def apply_weights(self, X):
         """
         Calculate the prediction matrix: Y_hat = XW.  No bias.
         """
         return X.dot(self.get_weights())
-
-    def derivative(self, X):
-        """
-        Derivative w.r.t. a subsample of training points, without the 2
-        constant
-        """
 
     def step(self, X, Y):
         """
@@ -173,7 +168,7 @@ class LeastSquaresSGD(ClassificationBase):
                      if 'test' in c or 'step' == c]
         return pd.DataFrame(test_results[t_columns])
 
-    def run(self):
+    def run(self, divergence_steps_max=50):
         num_diverged_steps = 0
         fast_convergence_steps = 0
 
@@ -239,10 +234,11 @@ class LeastSquaresSGD(ClassificationBase):
                 fast_convergence_steps += 1
             else:
                 num_diverged_steps = 0
-            if num_diverged_steps == 10:
-                print("\nWarning: model diverged 10 steps in a row.")
-            elif num_diverged_steps == 100:
-                raise ModelFitExcpetion("\nSquare loss grew 100 times in a row!")
+            if num_diverged_steps == 5:
+                print("\nWarning: model diverged 5 steps in a row.")
+            elif num_diverged_steps == divergence_steps_max:
+                raise ModelFitExcpetion("\nSquare loss grew {} times in a "
+                                        "row!".format(divergence_steps_max))
 
             assert not self.has_increased_significantly(
                 old_square_loss_norm, new_square_loss_norm),\
