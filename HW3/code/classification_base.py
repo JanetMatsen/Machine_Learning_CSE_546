@@ -145,29 +145,27 @@ class ClassificationBase:
                    for k, v in results.items()}
         return results
 
-    def plot_ys(self, x,y1, y2=None, ylabel=None, logx=True, colors=None,
-                figsize=(4, 3)):
-        assert self.results is not None
+    def plot_ys(self, x, y1, df=None, y2=None, ylabel=None, logx=True,
+                colors=None, figsize=(4, 3)):
+        if df is None:
+            assert self.results is not None
+            df = self.results
 
         fig, ax = plt.subplots(1, 1, figsize=figsize)
         if colors is None:
             colors = ['c','b']
         if logx:
-            plt.semilogx(self.results[x], self.results[y1],
-                         linestyle='--', marker='o',
-                         color=colors[0])
+            plt.semilogx(df[x], df[y1], linestyle='--',
+                         marker='o', color=colors[0])
             if y2:
-                plt.semilogx(self.results[x], self.results[y2],
-                             linestyle='--', marker='o',
-                             color=colors[1])
+                plt.semilogx(df[x], df[y2], linestyle='--',
+                             marker='o', color=colors[1])
         else:
-            plt.plot(self.results[x], self.results[y1],
-                         linestyle='--', marker='o',
-                         color=colors[0])
+            plt.plot(df[x], df[y1], linestyle='--',
+                     marker='o', color=colors[0])
             if y2:
-                plt.semilogx(self.results[x], self.results[y2],
-                             linestyle='--', marker='o',
-                             color=colors[1])
+                plt.semilogx(df[x], df[y2], linestyle='--',
+                             marker='o', color=colors[1])
         plt.legend(loc = 'best')
         plt.xlabel(x)
         if ylabel:
