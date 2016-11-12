@@ -218,7 +218,7 @@ class LeastSquaresSGD(ClassificationBase):
             if self.verbose:
                 print('loop through all the data. {}th time'.format(s))
             # Shuffle each time we loop through the entire data set.
-            X, Y = self.shuffle(self.X, self.Y)
+            X, Y = self.shuffle(self.X.copy(), self.Y.copy())
             num_pts = 0  # initial # of points seen in this pass through N pts
 
             # loop over ~all of the data points in little batches.
