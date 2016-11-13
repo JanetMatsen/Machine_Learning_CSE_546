@@ -8,7 +8,7 @@ import pandas as pd
 
 
 class HyperparameterExplorer:
-    def __init__(self, X, y, model, score_name, validation_split=0.1,
+    def __init__(self, X, y, classifier, score_name, validation_split=0.1,
                  test_X=None, test_y=None, use_prev_best_weights=True):
         # model_partial is a model that's missing one or more parameters.
         self.all_training_X = X  # reserved for final training after hyper sweep.
@@ -29,12 +29,15 @@ class HyperparameterExplorer:
               'data: {}, {}'.format(np.var(self.train_y),
                                     np.var(self.validation_y)))
 
-        self.model = partial(model, X=self.train_X, y=self.train_y)
 
         if test_X is not None and test_y is not None:
             self.test_X = test_X
             self.test_y = test_y
-            self.model = partial(self.model, test_X=test_X, test_y=test_y)
+            self.model = partial(classifier,
+                                 X=self.train_X, y=self.train_y,
+                                 test_X=test_X, test_y=test_y)
+        else:
+            self.model = partial(classifier, X=self.train_X, y=self.train_y)
 
         # keep track of model numbers.
         self.num_models = 0
@@ -45,11 +48,11 @@ class HyperparameterExplorer:
         self.score_name = re.sub("training", "", score_name)
         self.use_prev_best_weights = use_prev_best_weights
 
-    def train_model(self, **kwargs):
+    def train_model(self, kernel_kwargs, model_kwargs):
         # train model
         # check that model was made
         try:
-            m = self.model(**kwargs)
+            m = self.model(kernel_kwargs=kernel_kwargs, **model_kwargs)
             # set weights to the best found so far
             # Note: this is silly for non-iterative solvers like Ridge.
             if self.use_prev_best_weights:
@@ -62,7 +65,7 @@ class HyperparameterExplorer:
                 elif ("w" in m.__dict__.keys()) and best_weights is not None:
                     m.w = best_weights.copy()
         except NameError:
-            print("model failed for {}".format(**kwargs))
+            print("model failed for {}".format(**model_kwargs))
 
         self.num_models += 1
         m.run()

@@ -17,16 +17,20 @@ class LeastSquaresSGD(ClassificationBase):
     """
     def __init__(self, X, y, eta0=None, W=None,
                  kernel=RBFKernel,
-                 max_epochs=10 ** 6,  # of times passing through N pts
+                 kernel_kwargs=None,
+                 max_epochs=10**6,  # of times passing through N pts
                  batch_size=100,
                  progress_monitoring_freq=15000,
                  delta_percent=0.01, verbose=False,
-                 test_X=None, test_y=None): #
+                 test_X=None, test_y=None):
         # call the base class's methods first
         super(LeastSquaresSGD, self).__init__(X=X, y=y, W=W)
 
         # set up the kernel
-        self.kernel = kernel(X)
+        if kernel_kwargs is not None:
+            self.kernel = kernel(X, **kernel_kwargs)
+        else:
+            self.kernel = kernel(X)
         # write over base class's W
         self.W = np.zeros(shape=(self.kernel.d, self.C))
 
@@ -61,7 +65,7 @@ class LeastSquaresSGD(ClassificationBase):
         # \hat{Y} is expensive to calc, so share it across functions
         self.Yhat = None
 
-    def find_good_learning_rate(self, starting_eta0=1e-3,
+    def find_good_learning_rate(self, starting_eta0=1,
                                 max_divergence_streak_length=3):
         """
         Follow Sham's advice of cranking up learning rate until the model
@@ -92,7 +96,7 @@ class LeastSquaresSGD(ClassificationBase):
                 model.progress_monitoring_freq = model.N
                 model.eta0 = eta0
                 model.eta = eta0
-                model.max_epochs = 51 # make sure it fails pretty fast.
+                model.max_epochs = 31 # make sure it fails pretty fast.
                 model.run(
                     max_divergence_streak_length=max_divergence_streak_length)
                 if model.epochs < model.max_epochs and \
