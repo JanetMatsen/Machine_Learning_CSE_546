@@ -1,3 +1,4 @@
+from functools import partial
 import numpy as np
 import sys
 import pandas as pd
@@ -26,6 +27,8 @@ class LeastSquaresSGD(ClassificationBase):
 
         # set up the kernel
         self.kernel = kernel(X)
+        # write over base class's W
+        self.W = np.zeros(shape=(self.kernel.d, self.C))
 
         # set up attributes used for fitting
         self.max_epochs = max_epochs
@@ -115,28 +118,33 @@ class LeastSquaresSGD(ClassificationBase):
 
     def step(self, X, Y):
         """
-        Update the weights and bias
+        Update the weights and bias, using X which *has* been transformed
+        by the kernel
         """
         n, d = X.shape  # n and d of the sub-sample of X
         assert n == Y.shape[0]
+        assert X.shape == (n, self.kernel.d)
         # TODO: be positive I use W for all the points so far.
 
         # TODO: apply kernel, or before the step.  Then assert it's right dim
         gradient = -(1./n)*X.T.dot(Y - X.dot(self.W))
-        assert gradient.shape == (self.d, self.C)
+        assert gradient.shape == (self.kernel.d, self.C)
 
         # TODO: do I scale eta by N still?
         # TODO: subtract the gradient for grad descent (?)
         assert self.eta is not None
         self.W += -(self.eta/n)*gradient
-        assert self.W.shape == (self.d ,self.C), \
+        assert self.W.shape == (self.kernel.d ,self.C), \
             "shape of W is {}".format(self.W.shape)
         self.steps += 1
 
-    def calc_Yhat(self, X, chunk_size=10):
+    def calc_Yhat(self, chunk_size=10):
         """
-        Produce an (NxC) array of classes predictions.
+        Produce an (NxC) array of classes predictions on X, which has *not*
+        been transformed by the kernel.
         """
+        X = self.X
+
         if X.shape[0] < chunk_size:
             chunk_size = X.shape[0]
         N = X.shape[0]
@@ -148,8 +156,6 @@ class LeastSquaresSGD(ClassificationBase):
             kernel_chunk = self.kernel.transform(X_chunk)
             assert kernel_chunk.shape == (X_chunk.shape[0], self.kernel.d)
             Yhat_chunk = kernel_chunk.dot(self.W)
-            if Yhat_chunk.shape[1] != self.C:
-                import pdb; pdb.set_trace()
             if n == 0: # first pass through
                 Yhat = Yhat_chunk
             else:
@@ -180,7 +186,7 @@ class LeastSquaresSGD(ClassificationBase):
         errors_squared = np.multiply(errors, errors)
         return errors_squared.sum()
 
-    def shrink_eta(self, s, s_exp=0.5):
+    def shrink_eta(self, s, s_exp=0.3):
         # TODO: think about shrinking eta with time. :%
         self.eta = self.eta0/(s**s_exp)
 
@@ -191,7 +197,7 @@ class LeastSquaresSGD(ClassificationBase):
         Expensive!  Computes stuff for the (Nxd) X matrix.
         """
         # append on logistic regression-specific results
-        self.Yhat = self.calc_Yhat(self.X)
+        self.Yhat = self.calc_Yhat()
 
         # call parent class for universal metrics
         row = super(LeastSquaresSGD, self).results_row()
@@ -255,11 +261,12 @@ class LeastSquaresSGD(ClassificationBase):
                 print('Loop through all the data. {}th time'.format(self.epochs))
             # Shuffle each time we loop through the entire data set.
             X, Y = self.shuffle(self.X.copy(), self.Y.copy())
-            num_pts = 0  # initial # of points seen in this pass through N pts
 
             # initialize the statistic for tracking variance
             # Should be zero if weights are initially zero.
             old_w_hat_variance = np.var(self.calc_what())
+
+            steps_with_fast_convergence = 0
 
             # loop over ~all of the data points in little batches.
             num_pts = 0
@@ -339,7 +346,7 @@ class LeastSquaresSGD(ClassificationBase):
         # record the improvement:
         w_hat_improvement = pd.DataFrame(
             {'epoch':[self.epochs],
-             '\hat{w} % improvement': [w_hat_percent_improvement]})
+             '\hat{w} variance % change': [w_hat_percent_improvement]})
         # record it in our tracker.
         self.w_hat_variance_df = pd.concat([self.w_hat_variance_df,
                                             w_hat_improvement], axis=0)
@@ -400,15 +407,15 @@ class LeastSquaresSGD(ClassificationBase):
        """
        return(new > old and np.log10(1.-old/new) > -sig_fig)
 
-    def plot_01_loss(self, filename=None):
+    def plot_01_loss(self, filename=None, logx=False):
         super(LeastSquaresSGD, self).plot_01_loss(y="training (0/1 loss)/N",
-                                                  filename=filename)
+                                                  filename=filename,
+                                                  logx=logx)
 
-    def plot_square_loss(self, filename=None, last_steps=None):
-        fig = self.plot_ys(x='step', y1="(square loss)/N, training",
-                           ylabel="(square loss)/N")
-        if filename:
-            fig.savefig(filename + '.pdf')
+    def plot_square_loss(self, filename=None, logx=False):
+        self.plot_ys(x='step', y1="(square loss)/N, training",
+                     ylabel="(square loss)/N", logx=logx,
+                     filename=filename)
 
     def plot_test_and_train_square_loss_during_fitting(
             self, filename=None, colors=['#756bb1', '#2ca25f']):
@@ -437,9 +444,9 @@ class LeastSquaresSGD(ClassificationBase):
 
     def plot_w_hat_history(self):
         x = 'epoch'
-        y1 = '\hat{w} % improvement'
+        y1 = '\hat{w} variance % change'
         self.plot_ys(df=self.w_hat_variance_df, x=x, y1=y1, y2=None,
-                     ylabel= "\hat{w} % improvement",
+                     ylabel= "\hat{w} variance % change",
                      y0_line=True, logx=False, logy=False,
                      colors=None, figsize=(4, 3))
 

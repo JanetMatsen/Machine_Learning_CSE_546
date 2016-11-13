@@ -5,14 +5,14 @@ from scipy.spatial.distance import pdist
 class RBFKernel:
     def __init__(self, X, sigma=None):
         self.X = X
+        self.N = X.shape[0]
+        self.d = X.shape[0] # N by d --> N by N
         if sigma is None:
-            sample_size = max(1000, int(X.shape[0]/10))
+            sample_size = min(self.N, max(1000, int(X.shape[0]/10)))
             self.set_sigma(sample_size)
         else:
             self.sigma = sigma
         self.name = 'radial basis function'
-        self.N = X.shape[0]
-        self.d = X.shape[0] # N by d --> N by N
 
     def set_sigma(self, sample_size):
         """
@@ -31,8 +31,10 @@ class RBFKernel:
         print('determine RBF kernel bandwidth using {} points.'.format(
             sample_size))
 
-        X_sample = self.X[np.random.randint(0, self.X.shape[0], sample_size)]
+        X_sample_indices = np.random.choice(self.N, sample_size, replace=False)
+        X_sample = self.X[X_sample_indices]
         assert X_sample is not None
+
         pairwise_distances = pdist(X_sample)
         # TODO: try mean instead of median.
         median_dist = np.median(pairwise_distances)

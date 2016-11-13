@@ -147,7 +147,7 @@ class ClassificationBase:
 
     def plot_ys(self, x, y1, df=None, y2=None, ylabel=None,
                 logx=True, logy=False, y0_line = False,
-                colors=None, figsize=(4, 3)):
+                colors=None, figsize=(4, 3), filename=None):
         if df is None:
             assert self.results is not None
             df = self.results
@@ -183,12 +183,14 @@ class ClassificationBase:
             plt.ylabel(ylabel)
         else:
             pass
+        if filename is not None:
+            fig.savefig(filename + '.pdf')
         return fig
 
     def plot_01_loss(self, y="(0/1 loss)/N", ylabel="fractional 0/1 loss",
-                     filename=None):
+                     filename=None, logx=False):
         # TODO: break into another class that's IterativeModel
-        fig = self.plot_ys(x='step', y1=y, ylabel=ylabel)
+        fig = self.plot_ys(x='step', y1=y, ylabel=ylabel, logx=logx)
         if filename:
             fig.savefig(filename + '.pdf')
 
@@ -200,7 +202,7 @@ class ClassificationBase:
             fig.savefig(filename + '.pdf')
 
     def plot_2_subplots(self, x, y1, y2, pandas=True, title=None):
-        fig, axs = plt.subplots(2, 1, figsize=(4, 3))
+        fig, axs = plt.subplots(2, 1, figsize=(5, 4))
         colors = ['c','b']
         if pandas:
             self.results.plot(kind='scatter', ax=axs[0], x=x, y=y1,
@@ -223,11 +225,15 @@ class ClassificationBase:
             plt.title(title)
         plt.tight_layout()
 
-    def plot_log_loss_and_eta(self, pandas=True):
-            self.plot_2_subplots(x='step',
-                                 y1='-(log loss), training',
-                                 y2='eta',
-                                 pandas=pandas)
+    def plot_loss_and_eta(self, pandas=True):
+        if len([s for s in self.results.columns.tolist() if 'log loss' in s]) > 0:
+            loss = "-(log loss), training"
+        elif len([s for s in self.results.columns.tolist() if 'square loss' in s]) > 0:
+            loss = "(square loss), training"
+        self.plot_2_subplots(x='step',
+                             y1=loss,
+                             y2='eta',
+                             pandas=pandas)
 
     def plot_log_loss_normalized_and_eta(self, pandas=True):
             self.plot_2_subplots(x='step',
