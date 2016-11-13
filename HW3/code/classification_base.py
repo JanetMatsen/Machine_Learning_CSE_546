@@ -145,27 +145,38 @@ class ClassificationBase:
                    for k, v in results.items()}
         return results
 
-    def plot_ys(self, x, y1, df=None, y2=None, ylabel=None, logx=True,
+    def plot_ys(self, x, y1, df=None, y2=None, ylabel=None,
+                logx=True, logy=False, y0_line = False,
                 colors=None, figsize=(4, 3)):
         if df is None:
             assert self.results is not None
             df = self.results
 
+        if logx and not logy:
+            plot_fun = plt.semilogx
+        elif logy and not logx:
+            plot_fun = plt.semilogy
+        elif logx and logy:
+            plot_fun = plt.loglog
+        else:
+            plot_fun = plt.plot
+
+
         fig, ax = plt.subplots(1, 1, figsize=figsize)
         if colors is None:
             colors = ['c','b']
-        if logx:
-            plt.semilogx(df[x], df[y1], linestyle='--',
-                         marker='o', color=colors[0])
-            if y2:
-                plt.semilogx(df[x], df[y2], linestyle='--',
-                             marker='o', color=colors[1])
-        else:
-            plt.plot(df[x], df[y1], linestyle='--',
+
+        plot_fun(df[x], df[y1], linestyle='--',
                      marker='o', color=colors[0])
-            if y2:
-                plt.semilogx(df[x], df[y2], linestyle='--',
-                             marker='o', color=colors[1])
+        if y2:
+            plot_fun(df[x], df[y2], linestyle='--',
+                         marker='o', color=colors[1])
+
+        if y0_line:
+            ax.axhline(y=0, color='k')
+
+        plt.gca().set_ylim(bottom=0)
+
         plt.legend(loc = 'best')
         plt.xlabel(x)
         if ylabel:

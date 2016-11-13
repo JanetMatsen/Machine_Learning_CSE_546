@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.spatial.distance import pdist
 
+
 class RBFKernel:
     def __init__(self, X, sigma=None):
         self.X = X
@@ -10,6 +11,8 @@ class RBFKernel:
         else:
             self.sigma = sigma
         self.name = 'radial basis function'
+        self.N = X.shape[0]
+        self.d = X.shape[0] # N by d --> N by N
 
     def set_sigma(self, sample_size):
         """
@@ -51,3 +54,13 @@ class RBFKernel:
         """
         # TODO: could apply only to the first 1/2 of point (I think)
         return np.apply_along_axis(func1d=self.transform_vector, axis=1, arr=X)
+
+
+class NoKernel:
+    def __init__(self, X):
+        self.X = X
+        self.N, self.d = X.shape
+
+    def transform(self, X):
+        # The point of this kernel is to not transform anything at all.
+        return X
