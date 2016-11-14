@@ -122,6 +122,13 @@ class ClassificationBase:
             self.make_Y_from_y()
             assert self.Y.shape[0] == y.shape[0]
 
+    def replace_weights(self, new_weights):
+        if "W" in self.__dict__.keys():
+            if self.is_sparse():
+                self.W = sp.csc_matrix(new_weights)
+        elif "w" in m.__dict__.keys():
+            self.w = new_weights
+
     def apply_model(self, X, y, data_name):
         """
         Apply existing weights (for "base_model") to give predictions

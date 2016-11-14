@@ -57,6 +57,9 @@ class RBFKernel:
         # TODO: could apply only to the first 1/2 of point (I think)
         return np.apply_along_axis(func1d=self.transform_vector, axis=1, arr=X)
 
+    def info(self):
+        return {'sigma':[self.sigma]}
+
 
 class NoKernel:
     def __init__(self, X):

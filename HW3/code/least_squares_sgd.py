@@ -216,9 +216,11 @@ class LeastSquaresSGD(ClassificationBase):
             "step": [self.steps],
             "epoch": [self.epochs],
             "batch size": [self.batch_size],
-            "points": [self.points_sampled]
+            "points": [self.points_sampled],
             }
         row.update(more_details)
+        kernel_info = self.kernel.info()
+        row.update(kernel_info)
         self.Yhat = None  # wipe it so it can't be used incorrectly later
         return row
 
