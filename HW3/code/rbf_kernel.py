@@ -69,3 +69,6 @@ class NoKernel:
     def transform(self, X):
         # The point of this kernel is to not transform anything at all.
         return X
+
+    def info(self):
+        return {"null kernel":[None]}

@@ -67,9 +67,12 @@ class HyperparameterExplorer:
             print("model failed for {}".format(**model_kwargs))
 
         self.num_models += 1
+        self.model_number = self.num_models
         m.run()
         # save outcome of fit.  Includes training data 0/1 loss, etc.
         self.models[self.num_models] = m
+        print("saved as model # {}".format(self.num_models))
+
         # get results
         outcome = m.results_row()
         if len(outcome) < 1:

@@ -18,6 +18,7 @@ class LeastSquaresSGD(ClassificationBase):
     def __init__(self, X, y, eta0=None, W=None,
                  kernel=RBFKernel,
                  kernel_kwargs=None,
+                 eta0_search_start=1,
                  max_epochs=10**6,  # of times passing through N pts
                  batch_size=100,
                  progress_monitoring_freq=15000,
@@ -58,15 +59,17 @@ class LeastSquaresSGD(ClassificationBase):
         self.w_hat = None
 
         if eta0 is None:
-            self.eta0 = self.find_good_learning_rate()
+            self.eta0 = \
+                self.find_good_learning_rate(starting_eta0=eta0_search_start)
         else:
             self.eta0 = eta0
         self.eta = self.eta0
         # \hat{Y} is expensive to calc, so share it across functions
         self.Yhat = None
 
-    def find_good_learning_rate(self, starting_eta0=1,
-                                max_divergence_streak_length=3):
+    def find_good_learning_rate(self, starting_eta0,
+                                max_divergence_streak_length=3,
+                                max_expochs=15):
         """
         Follow Sham's advice of cranking up learning rate until the model
         diverges, then cutting it back down 50%.
@@ -80,6 +83,7 @@ class LeastSquaresSGD(ClassificationBase):
         """
         eta0 = starting_eta0
         change_factor = 5
+        eta0 = starting_eta0/change_factor  # so we don't skip first value
 
         # passed will become False once the learning rate is cranked up
         # enough to cause a model fit exception.
@@ -96,7 +100,7 @@ class LeastSquaresSGD(ClassificationBase):
                 model.progress_monitoring_freq = model.N
                 model.eta0 = eta0
                 model.eta = eta0
-                model.max_epochs = 31 # make sure it fails pretty fast.
+                model.max_epochs = max_expochs # make sure it fails pretty fast.
                 model.run(
                     max_divergence_streak_length=max_divergence_streak_length)
                 if model.epochs < model.max_epochs and \
@@ -112,6 +116,7 @@ class LeastSquaresSGD(ClassificationBase):
         # didn't cause divergence
         # todo: he says dividing by 2 works.  I'm getting bouncy w/o.
         self.eta0 = eta0/change_factor
+        self.eta = self.eta0
         return self.eta0
 
     def apply_weights(self, X):
@@ -180,17 +185,19 @@ class LeastSquaresSGD(ClassificationBase):
         return classes
 
     def square_loss(self):
-        # TODO: make sure I'm sharing Yhat results so I don't loop through twice.
-        # TODO: make sure I'm happy passing in un-kerneled X here
         assert self.Yhat is not None, \
             "Compute Yhat before calling predict, but don't compute too often!"
         Yhat = self.Yhat
         errors = self.Y - Yhat
+        # TODO: print a warning if the sum of the errors is large
+        avg_err = np.sum(np.absolute(errors))/self.N/self.C
+        if avg_err > 5:
+            print("The sum of errors is concerningly big: {}".format(avg_err))
         # element-wise squaring:
         errors_squared = np.multiply(errors, errors)
         return errors_squared.sum()
 
-    def shrink_eta(self, s, s_exp=0.3):
+    def shrink_eta(self, s, s_exp=0.5):
         # TODO: think about shrinking eta with time. :%
         self.eta = self.eta0/(s**s_exp)
 
@@ -210,7 +217,6 @@ class LeastSquaresSGD(ClassificationBase):
         more_details = {
             "eta0":[self.eta0],
             "eta": [self.eta],  # learning rate
-            "square loss": [self.square_loss()],
             "(square loss), training": [square_loss],
             "(square loss)/N, training": [square_loss/self.N],
             "step": [self.steps],
@@ -257,12 +263,16 @@ class LeastSquaresSGD(ClassificationBase):
         self.last_n_weights.append(weight_array)
         self.w_hat = self.calc_what()
 
-    def run(self, max_divergence_streak_length=10):
-        num_diverged_epochs = 0
-        #fast_convergence_epochs = 0
+    def run(self, max_divergence_streak_length=7, rerun=False):
+
+        # To support running model longer, need to retrieve
+        if rerun:
+            old_square_loss_norm = \
+                self.results.tail(1).reset_index()['(square loss)/N, training'][0]
 
         # Step until converged
         while self.epochs < self.max_epochs and not self.converged:
+
             if self.verbose:
                 print('Loop through all the data. {}th time'.format(self.epochs))
             # Shuffle each time we loop through the entire data set.
@@ -270,14 +280,15 @@ class LeastSquaresSGD(ClassificationBase):
 
             # initialize the statistic for tracking variance
             # Should be zero if weights are initially zero.
-            old_w_hat_variance = np.var(self.calc_what())
-
-            steps_with_fast_convergence = 0
+            old_w_hat_variance = self.w_hat_variance()
 
             # loop over ~all of the data points in little batches.
             num_pts = 0
             while num_pts < self.N :
                 if self.points_sampled%self.progress_monitoring_freq == 0:
+                    take_pulse = True
+                # add extra monitoring for first 5 steps.
+                elif self.steps < 10:
                     take_pulse = True
                 else:
                     take_pulse = False
@@ -294,7 +305,9 @@ class LeastSquaresSGD(ClassificationBase):
                 last_pass = num_pts == self.N # True if last loop in epoch
                 self.points_sampled += X_sample.shape[0]  # every point ever
 
-                if last_pass: # assess \hat{w} every N points
+                # assess \hat{w} every N points
+                # or the first pass of a re-run
+                if last_pass or rerun:
                     # update the average of recent weight vectors
                     w_hat_variance, w_hat_percent_improvement = \
                         self.w_hat_vitals(old_w_hat_variance)
@@ -304,7 +317,7 @@ class LeastSquaresSGD(ClassificationBase):
                 if take_pulse:
                     self.record_vitals()
                     square_loss_norm = \
-                        self.results.tail(1)['(square loss)/N, training'][0]
+                        self.results.tail(1).reset_index()['(square loss)/N, training'][0]
                 if take_pulse and self.epochs > 1:
                     square_loss_percent_improvement = self.percent_change(
                         new = square_loss_norm, old = old_square_loss_norm)
@@ -322,7 +335,6 @@ class LeastSquaresSGD(ClassificationBase):
                             "\nSquare loss grew {} measurements in a row!"
                             "".format(max_divergence_streak_length))
 
-                # save the current square loss for the next loop
                 old_square_loss_norm = square_loss_norm
 
                 if last_pass:
@@ -341,10 +353,32 @@ class LeastSquaresSGD(ClassificationBase):
         print('final normalized training (square loss): {}'.format(square_loss_norm))
         self.results.reset_index(drop=True, inplace=True)
 
+    def run_longer(self, epochs, progress_monitoring_freq=None,
+                   delta_percent=None, max_divergence_streak_length=None):
+        if self.converged:
+            print("Don't run a previously converged model longer without"
+                  "changing the convergence criteria.")
+            self.converged = False
+
+        self.max_epochs = self.max_epochs + epochs
+
+        if delta_percent is not None:
+            self.delta_percent = delta_percent
+
+        if progress_monitoring_freq is not None:
+            self.progress_monitoring_freq = progress_monitoring_freq
+
+        if max_divergence_streak_length is not None:
+            self.run(max_divergence_streak_length=max_divergence_streak_length)
+        else:
+            self.run(rerun=True)
+
+    def w_hat_variance(self):
+        return np.var(self.calc_what())
 
     def w_hat_vitals(self, old_w_hat_variance):
         self.update_w_hat(self.W, n=5)
-        new_w_hat_variance = np.var(self.calc_what())
+        new_w_hat_variance = self.w_hat_variance()
 
         w_hat_percent_improvement = self.percent_change(
             new=new_w_hat_variance, old=old_w_hat_variance)
@@ -413,15 +447,16 @@ class LeastSquaresSGD(ClassificationBase):
        """
        return(new > old and np.log10(1.-old/new) > -sig_fig)
 
-    def plot_01_loss(self, filename=None, logx=False):
-        super(LeastSquaresSGD, self).plot_01_loss(y="training (0/1 loss)/N",
-                                                  filename=filename,
-                                                  logx=logx)
+    def plot_01_loss(self, filename=None, logx=False, head_n=None, tail_n=None):
+        super(LeastSquaresSGD, self).plot_01_loss(
+            y="training (0/1 loss)/N", filename=filename, logx=logx,
+            head_n=head_n, tail_n=tail_n)
 
-    def plot_square_loss(self, filename=None, logx=False):
+    def plot_square_loss(self, filename=None, logx=False, logy=False,
+                         head_n=None, tail_n=None):
         self.plot_ys(x='step', y1="(square loss)/N, training",
-                     ylabel="(square loss)/N", logx=logx,
-                     filename=filename)
+                     ylabel="(square loss)/N", logx=logx, logy=logy,
+                     filename=filename, head_n=head_n, tail_n=tail_n)
 
     def plot_test_and_train_square_loss_during_fitting(
             self, filename=None, colors=['#756bb1', '#2ca25f']):

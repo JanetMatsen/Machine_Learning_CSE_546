@@ -152,12 +152,19 @@ class ClassificationBase:
                    for k, v in results.items()}
         return results
 
-    def plot_ys(self, x, y1, df=None, y2=None, ylabel=None,
+    def plot_ys(self, x, y1, y2=None, ylabel=None,
+                df=None, head_n=None, tail_n=None,
                 logx=True, logy=False, y0_line = False,
                 colors=None, figsize=(4, 3), filename=None):
         if df is None:
             assert self.results is not None
             df = self.results
+        assert not (head_n is not None and tail_n is not None), \
+            "Can't set the head and tail parameters for plotting."
+        if head_n is not None:
+            df = df.head(head_n)
+        if tail_n is not None:
+            df = df.head(tail_n)
 
         if logx and not logy:
             plot_fun = plt.semilogx
@@ -195,9 +202,9 @@ class ClassificationBase:
         return fig
 
     def plot_01_loss(self, y="(0/1 loss)/N", ylabel="fractional 0/1 loss",
-                     filename=None, logx=False):
-        # TODO: break into another class that's IterativeModel
-        fig = self.plot_ys(x='step', y1=y, ylabel=ylabel, logx=logx)
+                     filename=None, logx=False, head_n=None, tail_n=None):
+        fig = self.plot_ys(x='step', y1=y, ylabel=ylabel, logx=logx,
+                           head_n=head_n, tail_n=tail_n)
         if filename:
             fig.savefig(filename + '.pdf')
 
