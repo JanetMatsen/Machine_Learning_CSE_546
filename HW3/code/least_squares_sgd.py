@@ -82,6 +82,7 @@ class LeastSquaresSGD(ClassificationBase):
         My tool defines divergence by having a string of sequential
         diverging update steps.
         """
+        # First scale the eta0 value by the number of points in the training set.
         eta0 = self.eta0_search_start/self.N
         starting_eta0 = eta0
         change_factor = 5
@@ -89,8 +90,8 @@ class LeastSquaresSGD(ClassificationBase):
 
         # passed will become False once the learning rate is cranked up
         # enough to cause a model fit exception.
-        rates_tried = 0
         passed = True
+        rates_tried = 0
         while passed is True:
             try:
                 rates_tried += 1
@@ -210,6 +211,13 @@ class LeastSquaresSGD(ClassificationBase):
         return errors_squared.sum()
 
     def shrink_eta(self, s_exp=0.5):
+        """
+        Scale eta by the number of steps, in a way that is independent of
+        the batch size.
+        :param s: steps so far
+        :param s_exp: exponential rate
+        :return:
+        """
         epochs = (self.steps - self.fast_steps)/(self.N) + 1
         self.eta = self.eta0/(epochs**s_exp)
 
@@ -256,7 +264,7 @@ class LeastSquaresSGD(ClassificationBase):
         #             if 'test' in c or 'step' == c]
         #return pd.DataFrame(test_results[t_columns])
 
-    def calc_what(self):
+    def calc_w_hat(self):
         """
         \hat{w} is the average weights over the last n fittings
         """
@@ -275,7 +283,7 @@ class LeastSquaresSGD(ClassificationBase):
         if len(self.last_n_weights) >= n:
             self.last_n_weights.pop(0)
         self.last_n_weights.append(weight_array)
-        self.w_hat = self.calc_what()
+        self.w_hat = self.calc_w_hat()
 
     def run(self, max_divergence_streak_length=7, rerun=False):
 
@@ -306,7 +314,7 @@ class LeastSquaresSGD(ClassificationBase):
                 if self.points_sampled%self.progress_monitoring_freq == 0:
                     take_pulse = True
                 # add extra monitoring for first few steps; this gives extra
-                # awareness of model divergence
+                # awareness of model divergence.
                 elif self.steps < 10:
                     take_pulse = True
                 elif rerun and num_pts == 0:
@@ -322,6 +330,7 @@ class LeastSquaresSGD(ClassificationBase):
                 Y_sample = Y[idx_start:idx_stop, ]
 
                 self.step(X_sample, Y_sample)
+
                 num_pts += X_sample.shape[0]  # loop-scoped count
                 last_pass = num_pts == self.N # True if last loop in epoch
                 self.points_sampled += X_sample.shape[0]  # every point ever
@@ -403,7 +412,7 @@ class LeastSquaresSGD(ClassificationBase):
             self.run(rerun=True)
 
     def w_hat_variance(self):
-        return np.var(self.calc_what())
+        return np.var(self.calc_w_hat())
 
     def w_hat_vitals(self, old_w_hat_variance):
         self.update_w_hat(self.W, n=5)
