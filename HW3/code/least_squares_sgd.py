@@ -19,7 +19,7 @@ class LeastSquaresSGD(ClassificationBase):
     def __init__(self, X, y, eta0=None, W=None,
                  kernel=RBFKernel,
                  kernel_kwargs=None,
-                 eta0_search_start=0.001,
+                 eta0_search_start=1000,
                  max_epochs=10**6,  # of times passing through N pts
                  batch_size=100,
                  progress_monitoring_freq=15000,
@@ -62,8 +62,7 @@ class LeastSquaresSGD(ClassificationBase):
 
         self.eta0_search_start = eta0_search_start
         if eta0 is None:
-            self.eta0 = \
-                self.find_good_learning_rate()
+            self.find_good_learning_rate()
         else:
             self.eta0 = eta0
         self.eta = self.eta0
@@ -121,9 +120,14 @@ class LeastSquaresSGD(ClassificationBase):
         # return an eta almost as high as the biggest one one that
         # didn't cause divergence
         # todo: he says dividing by 2 works.  I'm getting bouncy w/o.
-        self.eta0 = eta0/change_factor
-        self.eta = self.eta0
-        return self.eta0
+        if rates_tried == 1:
+            print("--- eta0 didn't change; start 100x lower --- \n")
+            self.eta0_search_start = self.eta0_search_start/100
+            self.find_good_learning_rate()
+        else:
+            self.eta0 = eta0/change_factor
+            self.eta = self.eta0
+            print("===== Begin training with eta0 = {} ====".format(self.eta0))
 
     def apply_weights(self, X):
         """

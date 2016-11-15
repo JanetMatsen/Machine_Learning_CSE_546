@@ -97,9 +97,11 @@ class HyperparameterExplorer:
         self.summary.reset_index(drop=True, inplace=True)
 
         # Plot log loss vs time if applicable.
-        if "log loss" in self.summary.columns:
-            m.plot_test_and_train_log_loss_during_fitting()
-            m.plot_test_and_train_01_loss_during_fitting()
+        try:
+            m.plot_loss_and_eta()
+            m.plot_w_hat_history()
+        except:
+            print("not all plotting calls worked.")
 
     def best(self, value='model'):
         """
