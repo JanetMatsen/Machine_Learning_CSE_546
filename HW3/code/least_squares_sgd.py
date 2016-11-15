@@ -1,4 +1,5 @@
 from functools import partial
+import datetime
 import numpy as np
 import sys
 import pandas as pd
@@ -18,7 +19,7 @@ class LeastSquaresSGD(ClassificationBase):
     def __init__(self, X, y, eta0=None, W=None,
                  kernel=RBFKernel,
                  kernel_kwargs=None,
-                 eta0_search_start=1,
+                 eta0_search_start=0.001,
                  max_epochs=10**6,  # of times passing through N pts
                  batch_size=100,
                  progress_monitoring_freq=15000,
@@ -39,6 +40,7 @@ class LeastSquaresSGD(ClassificationBase):
         self.max_epochs = max_epochs
         self.delta_percent = delta_percent
         self.steps = 0
+        self.fast_steps = 0
         self.verbose = verbose
         if test_X is None and test_y is None:
             print("No test data was provided.")
@@ -197,9 +199,9 @@ class LeastSquaresSGD(ClassificationBase):
         errors_squared = np.multiply(errors, errors)
         return errors_squared.sum()
 
-    def shrink_eta(self, s, s_exp=0.5):
-        # TODO: think about shrinking eta with time. :%
-        self.eta = self.eta0/(s**s_exp)
+    def shrink_eta(self, s_exp=0.5):
+        epochs = (self.steps - self.fast_steps)/(self.N) + 1
+        self.eta = self.eta0/(epochs**s_exp)
 
     def results_row(self):
         """
@@ -315,7 +317,11 @@ class LeastSquaresSGD(ClassificationBase):
                 # take the more expensive pulse, using Yhat, which
                 # requires kernel transformatin of all of X.
                 if take_pulse:
+                    if self.verbose:
+                        print("Vitals start:{}.".format(self.datetime()))
                     self.record_vitals()
+                    if self.verbose:
+                        print("Vitals done:{}.".format(self.datetime()))
                     square_loss_norm = \
                         self.results.tail(1).reset_index()['(square loss)/N, training'][0]
                 if take_pulse and self.epochs > 1:
@@ -490,4 +496,9 @@ class LeastSquaresSGD(ClassificationBase):
                      ylabel= "\hat{w} variance % change",
                      y0_line=True, logx=False, logy=False,
                      colors=None, figsize=(4, 3))
+
+    @staticmethod
+    def datetime():
+        now = datetime.datetime.now()
+        return now.strftime("%Y-%m-%d %H:%M:%S")
 
