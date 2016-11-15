@@ -118,14 +118,14 @@ class LeastSquaresSGD(ClassificationBase):
         assert rates_tried >= 1, "\n eta0 didn't change; start lower"
         print("Exploration for good eta0 started at {}; stopped passing when "
               "eta0  grew to {}".format(starting_eta0, eta0))
-        # return an eta almost as high as the biggest one one that
-        # didn't cause divergence
-        # todo: he says dividing by 2 works.  I'm getting bouncy w/o.
+
         if rates_tried == 1:
             print("--- eta0 didn't change; start 100x lower --- \n")
             self.eta0_search_start = self.eta0_search_start/100
             self.find_good_learning_rate()
         else:
+            # return an eta almost as high as the biggest one one that
+            # didn't cause divergence
             self.eta0 = eta0/change_factor
             self.eta = self.eta0
             print("===== Begin training with eta0 = {} ====".format(self.eta0))
@@ -392,11 +392,23 @@ class LeastSquaresSGD(ClassificationBase):
         self.results.reset_index(drop=True, inplace=True)
 
     def run_longer(self, epochs, progress_monitoring_freq=None,
-                   delta_percent=None, max_divergence_streak_length=None):
+                   delta_percent=None, max_divergence_streak_length=None,
+                   fast_steps=None):
+        print("Run model (currently with with {} steps) longer."
+              "".format(self.steps))
         if self.converged:
             print("Don't run a previously converged model longer without"
                   "changing the convergence criteria.")
             self.converged = False
+
+        # increase the learning rate by specifying a number of fast steps.
+        # This is subtracted from self.steps when scaling eta by the number of
+        # steps
+        if fast_steps is not None:
+            if self.fast_steps > 0 and self.fast_steps is not None:
+                print("Warning: number of fast steps was already set to {}.  "
+                      "Changing it to {}".format(self.fast_steps, fast_steps))
+            self.fast_steps = fast_steps
 
         self.max_epochs = self.max_epochs + epochs
 
