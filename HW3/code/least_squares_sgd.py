@@ -201,6 +201,8 @@ class LeastSquaresSGD(ClassificationBase):
         errors = self.Y - Yhat
         # TODO: print a warning if the sum of the errors is large
         avg_err = np.sum(np.absolute(errors))/self.N/self.C
+        if self.verbose:
+            print("average error: {}.  (step = {})".format(avg_err, self.steps))
         if avg_err > 5:
             print("The sum of errors is concerningly big: {}".format(avg_err))
         # element-wise squaring:
@@ -245,12 +247,14 @@ class LeastSquaresSGD(ClassificationBase):
         Note: this has nothing to do with model fitting.
         It is only for reporting and gaining intuition.
         """
-        test_results = pd.DataFrame(
-            self.apply_model(X=self.test_X, y=self.test_y,
-                             data_name = 'testing'))
-        t_columns = [c for c in test_results.columns
-                     if 'test' in c or 'step' == c]
-        return pd.DataFrame(test_results[t_columns])
+        print("disabled for logistic SGD.  Too slow!")
+        pass
+        #test_results = pd.DataFrame(
+        #    self.apply_model(X=self.test_X, y=self.test_y,
+        #                     data_name = 'testing'))
+        #t_columns = [c for c in test_results.columns
+        #             if 'test' in c or 'step' == c]
+        #return pd.DataFrame(test_results[t_columns])
 
     def calc_what(self):
         """
@@ -301,7 +305,8 @@ class LeastSquaresSGD(ClassificationBase):
                 iter += 1
                 if self.points_sampled%self.progress_monitoring_freq == 0:
                     take_pulse = True
-                # add extra monitoring for first 5 steps.
+                # add extra monitoring for first few steps; this gives extra
+                # awareness of model divergence
                 elif self.steps < 10:
                     take_pulse = True
                 elif rerun and num_pts == 0:
@@ -338,6 +343,10 @@ class LeastSquaresSGD(ClassificationBase):
                         print("Vitals done:{}.".format(self.datetime()))
                     square_loss_norm = \
                         self.results.tail(1).reset_index()['(square loss)/N, training'][0]
+                    if square_loss_norm/self.N > 1e6:
+                        s = "square loss/N/N grew to {}".format(
+                            square_loss_norm/self.N)
+                        raise ModelFitExcpetion(s)
                 if take_pulse and self.epochs > 1:
                     square_loss_percent_improvement = self.percent_change(
                         new = square_loss_norm, old = old_square_loss_norm)
@@ -417,9 +426,9 @@ class LeastSquaresSGD(ClassificationBase):
         row_results = pd.DataFrame(self.results_row())
 
         # also find the square loss & 0/1 loss using test data.
-        if (self.test_X is not None) and (self.test_y is not None):
-            test_results = self.assess_model_on_test_data()
-            row_results = pd.merge(row_results, test_results)
+        #if (self.test_X is not None) and (self.test_y is not None):
+        #    test_results = self.assess_model_on_test_data()
+        #    row_results = pd.merge(row_results, test_results)
 
         self.results = pd.concat([self.results, row_results], axis=0)
 
