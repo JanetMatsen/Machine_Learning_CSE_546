@@ -105,33 +105,38 @@ class Pca:
             summary = pd.concat([summary, row])
         self.fractional_reconstruction_df = summary
 
-    def plot_fractional_reconstruction_error(self, start=None, stop=None,
-                                             title=None):
-        if self.fractional_reconstruction_df is None:
-            self.fractional_reconstruction_error()
-        if start is None:
-            self.start = 0
-        if stop is None:
-            self.stop = self.dimensions
-        plot_data = self.fractional_reconstruction_df[
-            (self.fractional_reconstruction_df.k >= start) &
-            (self.fractional_reconstruction_df.k <= stop)]
-        x = plot_data.k
-        y = plot_data['fractional reconstruction']
-        fig, ax = plt.subplots(1, 1, figsize=(3.5,3))
-        plt.plot(x, y, linestyle='--', marker='o', color='b')
-        plt.legend(loc = 'best')
-        plt.xlabel("k")
-        plt.ylabel("fractional reconstrction error")
-        if title is None:
-            title = "Q-1-2-2"
-        plt.title(title)
-        plt.tight_layout()
-        fig.savefig("../figures/Q-1-2-2.pdf")
-        return fig
-
     def save_sigma(self, filename):
         np.save(filename + '.npy', self.sigma)
+
+    def hello(self):
+        print("hello!")
+
+
+def plot_fractional_reconstruction_error(pca_obj, start=None, stop=None,
+                                         title=None):
+    if pca_obj.fractional_reconstruction_df is None:
+        pca_obj.fractional_reconstruction_error()
+    if start is None:
+        start = 0
+    if stop is None:
+        stop = pca_obj.dimensions
+    plot_data = pca_obj.fractional_reconstruction_df[
+        (pca_obj.fractional_reconstruction_df.k >= start) &
+        (pca_obj.fractional_reconstruction_df.k <= stop)]
+    x = plot_data.k
+    y = plot_data['fractional reconstruction']
+    fig, ax = plt.subplots(1, 1, figsize=(3.5, 3))
+    plt.plot(x, y, linestyle='--', marker='o', color='#756bb1')
+    plt.legend(loc='best')
+    plt.xlabel("k")
+    plt.ylabel("fractional reconstrction error")
+    if title is None:
+        title = "Q-1-2-2"
+    plt.title(title)
+    plt.tight_layout()
+    filename = "../figures/Q-1-2-2_{}_to_{}".format(start, stop)
+    fig.savefig(filename + ".pdf")
+    return fig
 
 
 def make_image(data, path=None):
@@ -142,4 +147,7 @@ def make_image(data, path=None):
     if path is not None:
         plt.savefig(path)
         plt.close()
+
+def project_image(self, dimensions):
+    pass
 
