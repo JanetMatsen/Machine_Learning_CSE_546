@@ -1,5 +1,10 @@
 /HW3/code/not_updated/*
 
+HW3/SUBMIT/
+HW3/figures/
+HW3/notebooks/data/
+HW3/notebooks/waffle_notebooks_to_render/
+
 python-mnist/
 *trash*
 *.idea* 
