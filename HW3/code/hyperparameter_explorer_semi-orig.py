@@ -10,7 +10,7 @@ import pandas as pd
 class HyperparameterExplorer:
     def __init__(self, X, y, classifier, score_name, primary_hyperparameter,
                  validation_split=0.1, test_X=None, test_y=None,
-                 use_prev_best_weights=True):
+                 use_prev_best_weights=True, ):
         # model_partial is a model that's missing one or more parameters.
         self.all_training_X = X  # reserved for final training after hyper sweep.
         self.all_training_y = y  # reserved for final training after hyper sweep.
@@ -57,22 +57,22 @@ class HyperparameterExplorer:
             m = self.model(kernel_kwargs=kernel_kwargs, **model_kwargs)
             # set weights to the best found so far
             # Note: this is silly for non-iterative solvers like Ridge.
-            if self.use_prev_best_weights and self.summary.shape[0] >=1:
-                print('Starting with best weights from previous model(s)')
-                best_weights = self.best('weights')
-                if best_weights is not None:
-                    m.replace_weights(best_weights.copy())
-
+            if self.use_prev_best_weights:
+                best_weights = self.best_weights_given_hyperparam(m.lam)
+                if "W" in m.__dict__.keys() and best_weights is not None:
+                    # TODO: new fun best_weights_given_lam()
+                    m.W = best_weights.copy()
+                    if m.is_sparse():
+                        m.W = sp.csc_matrix(m.W)
+                elif ("w" in m.__dict__.keys()) and best_weights is not None:
+                    m.w = best_weights.copy()
         except NameError:
             print("model failed for {}".format(**model_kwargs))
 
         self.num_models += 1
-        self.model_number = self.num_models
         m.run()
         # save outcome of fit.  Includes training data 0/1 loss, etc.
         self.models[self.num_models] = m
-        print("saved as model # {}".format(self.num_models))
-
         # get results
         outcome = m.results_row()
         if len(outcome) < 1:
@@ -133,7 +133,7 @@ class HyperparameterExplorer:
             self.validation_score_name, best_score, i))
         return model
 
-    def best_results_across_hyperparams(self):
+    def best_results_for_each_lambda(self):
         """
         Group summary results by lambda and return a summary of the best
         validation score result for each lambda tested so far.
@@ -141,15 +141,46 @@ class HyperparameterExplorer:
         if self.summary.shape[0] == 0:
             return None
         # best losses at each lambda:
-        p = self.primary_hyperparameter
-        idx = self.summary.groupby([p])[self.validation_score_name].\
+        idx = self.summary.groupby(['lambda'])[self.validation_score_name].\
                   transform(min) == self.summary[self.validation_score_name]
         return self.summary[idx]
 
-    def plot_fits(self, df=None, x=None, y1=None, y2=None,
-                  filename=None, xlim=None, ylim=None, logx=True):
-        if x is None:
-            x = self.primary_hyperparameter
+    def best_weights_given_hyperparam(self, hyperparam):
+        """
+        Return the best weights seen for your lambda.
+        If your lambda hasn't been tested, return the best weights for the
+        closest lambda.
+        """
+        best_scores = self.best_results_for_each_lambda()
+        if best_scores is None:
+            return None
+        # closest lambda value tested so far:
+        def closest_lambda(x):
+            """ lambda function: gets the most similar lambda in the dataframe"""
+            nonlocal lam
+            return abs(x-lam)
+
+        closest_lambda = min(best_scores['lambda'].reset_index(drop=True),
+                              key=closest_lambda)
+        closest_score = \
+            best_scores[best_scores['lambda'] ==
+                        closest_lambda][self.validation_score_name].reset_index(drop=True)[0]
+        print("returning best weights for lambda = {}.  "
+              "Corresponded to {} = {}".format(
+            closest_lambda, self.validation_score_name, closest_score))
+
+        closest_row = \
+            self.summary[(self.summary['lambda'] == closest_lambda) &
+                         (self.summary[self.validation_score_name] ==
+                          closest_score)]
+
+        assert closest_row.shape[0] == 1
+
+        return closest_row['weights'].reset_index(drop=True)[0].copy()
+
+    def plot_fits(self, df = None, x='lambda',
+                  y1=None, y2=None, filename=None, xlim=None, ylim=None,
+                  logx=True):
         if df is None:
             df = self.summary
         if y1 == None:
@@ -181,6 +212,10 @@ class HyperparameterExplorer:
         plt.tight_layout()
         if filename is not None:
             fig.savefig(filename + '.pdf')
+
+    def plot_best_fits(self, y1=None, y2=None, logx=True):
+        df = self.best_results_for_each_lambda()
+        self.plot_fits(df=df, y1=y1, y2=y2, xlim=None, ylim=None, logx=logx)
 
     def train_on_whole_training_set(self, max_steps=None, delta_percent=None):
         # get the best model conditions from the hyperparameter exploration,
