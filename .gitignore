@@ -1,5 +1,11 @@
 /HW3/code/not_updated/*
 
+.DS_Store
+._.DS_Store
+/.idea
+.idea/*
+../.idea/
+
 HW3/SUBMIT/
 HW3/figures/
 HW3/notebooks/data/
