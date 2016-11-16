@@ -7,8 +7,9 @@ import pandas as pd
 
 
 class Pca:
-    def __init__(self, X, dimensions, center=True, verbose=False):
+    def __init__(self, X, dimensions, y=None, center=True, verbose=False):
         self.X = X
+        self.y = y
         self.X_center = X.sum(axis=0)/X.shape[0]
         self.N, self.d = X.shape
         # dimensions = "dimensions which best reconstruct the data"
@@ -108,8 +109,50 @@ class Pca:
     def save_sigma(self, filename):
         np.save(filename + '.npy', self.sigma)
 
-    def hello(self):
-        print("hello!")
+    def transform_number_down(self, xi, num_eigenvectors):
+        W = self.eigenvects[:,0:num_eigenvectors]
+        return xi.dot(W)
+
+    def transform_number_up(self, xi, num_eigenvectors):
+        W = self.eigenvects[:,0:num_eigenvectors]
+        down = self.transform_number_down(xi, num_eigenvectors)
+        return down.dot(W.T)
+
+    def find_first(self, number):
+        """ Index of first occurance"""
+        vector = self.y
+        for i in range(len(vector)):
+            if number == vector[i]:
+                return i
+
+    def find_0_through_4(self):
+        indices = []
+        for n in [0, 1, 2, 3, 4]:
+            indices.append(self.find_first(n))
+        return np.array(indices)
+
+    def transform_digits(self, vectors, n_components, up=True):
+        for i in range(vectors.shape[0]):
+            if up:
+                t = self.transform_number_up(vectors[i], n_components)
+            else:
+                t = self.transform_number_down(vectors[i], n_components)
+            if i == 0:
+                transformed = t
+            else:
+                transformed = np.vstack([transformed, t])
+        return transformed
+
+    def transform_sample_digits(self, n_components=50):
+        X = self.X[self.find_0_through_4()]
+        np.save('./data/digits_0_through_4--untransformed.npy', X)
+        assert X.shape[0] == 5, "supposed to have 5 digits and have {}" \
+                                "".format(X.shape[0])
+        transformed = self.transform_digits(vectors=X, n_components=n_components)
+        return transformed
+
+    def transform_all_digits_down(self, n_components=50):
+        return self.transform_digits(self.X, n_components, up=False)
 
 
 def plot_fractional_reconstruction_error(pca_obj, start=None, stop=None,
@@ -139,6 +182,7 @@ def plot_fractional_reconstruction_error(pca_obj, start=None, stop=None,
     return fig
 
 
+
 def make_image(data, path=None):
     plt.figure(figsize=(1,1))
     p=plt.imshow(data.reshape(28, 28), origin='upper')
@@ -147,6 +191,7 @@ def make_image(data, path=None):
     if path is not None:
         plt.savefig(path)
         plt.close()
+
 
 def project_image(self, dimensions):
     pass
