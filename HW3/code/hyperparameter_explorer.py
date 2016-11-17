@@ -74,7 +74,7 @@ class HyperparameterExplorer:
         print("saved as model # {}".format(self.num_models))
 
         # get results
-        outcome = m.results_row()
+        outcome = m.results.tail(1).reset_index()
         if len(outcome) < 1:
             print("model didn't work..?")
         # Save the model number for so we can look up the model later
@@ -97,9 +97,11 @@ class HyperparameterExplorer:
         self.summary.reset_index(drop=True, inplace=True)
 
         # Plot log loss vs time if applicable.
-        if "log loss" in self.summary.columns:
-            m.plot_test_and_train_log_loss_during_fitting()
-            m.plot_test_and_train_01_loss_during_fitting()
+        try:
+            m.plot_loss_and_eta()
+            m.plot_w_hat_history()
+        except:
+            print("not all plotting calls worked.")
 
     def best(self, value='model'):
         """
@@ -190,7 +192,7 @@ class HyperparameterExplorer:
         #print(self.best('summary'))
         print("getting best model.")
         self.final_model = self.best('model').copy()
-        print(self.final_model.results_row())
+        print(self.final_model.results.tail(1))
 
         # replace the smaller training sets with the whole training set.
         self.final_model.replace_X_and_y(self.all_training_X,

@@ -1,5 +1,13 @@
 HW3/notebooks/retired/*
+HW2/notebooks/version_at_submission/
 /HW3/code/not_updated/*
+
+.DS_Store
+._.DS_Store
+/.idea
+.idea/*
+../.idea/
+
 HW3/SUBMIT/
 HW3/figures/
 HW3/notebooks/data/

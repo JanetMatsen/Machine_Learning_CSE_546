@@ -7,8 +7,9 @@ import pandas as pd
 
 
 class Pca:
-    def __init__(self, X, dimensions, center=True, verbose=False):
+    def __init__(self, X, dimensions, y=None, center=True, verbose=False):
         self.X = X
+        self.y = y
         self.X_center = X.sum(axis=0)/X.shape[0]
         self.N, self.d = X.shape
         # dimensions = "dimensions which best reconstruct the data"
@@ -105,33 +106,81 @@ class Pca:
             summary = pd.concat([summary, row])
         self.fractional_reconstruction_df = summary
 
-    def plot_fractional_reconstruction_error(self, start=None, stop=None,
-                                             title=None):
-        if self.fractional_reconstruction_df is None:
-            self.fractional_reconstruction_error()
-        if start is None:
-            self.start = 0
-        if stop is None:
-            self.stop = self.dimensions
-        plot_data = self.fractional_reconstruction_df[
-            (self.fractional_reconstruction_df.k >= start) &
-            (self.fractional_reconstruction_df.k <= stop)]
-        x = plot_data.k
-        y = plot_data['fractional reconstruction']
-        fig, ax = plt.subplots(1, 1, figsize=(3.5,3))
-        plt.plot(x, y, linestyle='--', marker='o', color='b')
-        plt.legend(loc = 'best')
-        plt.xlabel("k")
-        plt.ylabel("fractional reconstrction error")
-        if title is None:
-            title = "Q-1-2-2"
-        plt.title(title)
-        plt.tight_layout()
-        fig.savefig("../figures/Q-1-2-2.pdf")
-        return fig
-
     def save_sigma(self, filename):
         np.save(filename + '.npy', self.sigma)
+
+    def transform_number_down(self, xi, num_eigenvectors):
+        W = self.eigenvects[:,0:num_eigenvectors]
+        return xi.dot(W)
+
+    def transform_number_up(self, xi, num_eigenvectors):
+        W = self.eigenvects[:,0:num_eigenvectors]
+        down = self.transform_number_down(xi, num_eigenvectors)
+        return down.dot(W.T)
+
+    def find_first(self, number):
+        """ Index of first occurance"""
+        vector = self.y
+        for i in range(len(vector)):
+            if number == vector[i]:
+                return i
+
+    def find_0_through_4(self):
+        indices = []
+        for n in [0, 1, 2, 3, 4]:
+            indices.append(self.find_first(n))
+        return np.array(indices)
+
+    def transform_digits(self, vectors, n_components, up=True):
+        for i in range(vectors.shape[0]):
+            if up:
+                t = self.transform_number_up(vectors[i], n_components)
+            else:
+                t = self.transform_number_down(vectors[i], n_components)
+            if i == 0:
+                transformed = t
+            else:
+                transformed = np.vstack([transformed, t])
+        return transformed
+
+    def transform_sample_digits(self, n_components=50):
+        X = self.X[self.find_0_through_4()]
+        np.save('./data/digits_0_through_4--untransformed.npy', X)
+        assert X.shape[0] == 5, "supposed to have 5 digits and have {}" \
+                                "".format(X.shape[0])
+        transformed = self.transform_digits(vectors=X, n_components=n_components)
+        return transformed
+
+    def transform_all_digits_down(self, n_components=50):
+        return self.transform_digits(self.X, n_components, up=False)
+
+
+def plot_fractional_reconstruction_error(pca_obj, start=None, stop=None,
+                                         title=None):
+    if pca_obj.fractional_reconstruction_df is None:
+        pca_obj.fractional_reconstruction_error()
+    if start is None:
+        start = 0
+    if stop is None:
+        stop = pca_obj.dimensions
+    plot_data = pca_obj.fractional_reconstruction_df[
+        (pca_obj.fractional_reconstruction_df.k >= start) &
+        (pca_obj.fractional_reconstruction_df.k <= stop)]
+    x = plot_data.k
+    y = plot_data['fractional reconstruction']
+    fig, ax = plt.subplots(1, 1, figsize=(3.5, 3))
+    plt.plot(x, y, linestyle='--', marker='o', color='#756bb1')
+    plt.legend(loc='best')
+    plt.xlabel("k")
+    plt.ylabel("fractional reconstrction error")
+    if title is None:
+        title = "Q-1-2-2"
+    plt.title(title)
+    plt.tight_layout()
+    filename = "../figures/Q-1-2-2_{}_to_{}".format(start, stop)
+    fig.savefig(filename + ".pdf")
+    return fig
+
 
 
 def make_image(data, path=None):
@@ -142,4 +191,8 @@ def make_image(data, path=None):
     if path is not None:
         plt.savefig(path)
         plt.close()
+
+
+def project_image(self, dimensions):
+    pass
 

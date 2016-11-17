@@ -1,4 +1,5 @@
 from functools import partial
+import datetime
 import numpy as np
 import sys
 import pandas as pd
@@ -18,7 +19,7 @@ class LeastSquaresSGD(ClassificationBase):
     def __init__(self, X, y, eta0=None, W=None,
                  kernel=RBFKernel,
                  kernel_kwargs=None,
-                 eta0_search_start=1,
+                 eta0_search_start=1000,
                  max_epochs=10**6,  # of times passing through N pts
                  batch_size=100,
                  progress_monitoring_freq=15000,
@@ -39,6 +40,7 @@ class LeastSquaresSGD(ClassificationBase):
         self.max_epochs = max_epochs
         self.delta_percent = delta_percent
         self.steps = 0
+        self.fast_steps = 0
         self.verbose = verbose
         if test_X is None and test_y is None:
             print("No test data was provided.")
@@ -48,7 +50,7 @@ class LeastSquaresSGD(ClassificationBase):
         assert progress_monitoring_freq%batch_size == 0, \
             "need to monitor at frequencies that are multiples of the " \
             "mini-batch size."
-        print("Remember not to check the log loss too often.  Expensive!")
+        print("Remember not to check the loss too often.  Super $$expensive$$!")
         self.progress_monitoring_freq = progress_monitoring_freq
         self.epochs = 1
         self.points_sampled = 0
@@ -58,18 +60,17 @@ class LeastSquaresSGD(ClassificationBase):
         self.w_hat_variance_df = pd.DataFrame()
         self.w_hat = None
 
+        self.eta0_search_start = eta0_search_start
         if eta0 is None:
-            self.eta0 = \
-                self.find_good_learning_rate(starting_eta0=eta0_search_start)
+            self.find_good_learning_rate()
         else:
             self.eta0 = eta0
         self.eta = self.eta0
         # \hat{Y} is expensive to calc, so share it across functions
         self.Yhat = None
 
-    def find_good_learning_rate(self, starting_eta0,
-                                max_divergence_streak_length=3,
-                                max_expochs=15):
+    def find_good_learning_rate(self, max_divergence_streak_length=3,
+                                max_expochs=10):
         """
         Follow Sham's advice of cranking up learning rate until the model
         diverges, then cutting it back down 50%.
@@ -81,15 +82,19 @@ class LeastSquaresSGD(ClassificationBase):
         My tool defines divergence by having a string of sequential
         diverging update steps.
         """
-        eta0 = starting_eta0
+        # First scale the eta0 value by the number of points in the training set.
+        eta0 = self.eta0_search_start/self.N
+        starting_eta0 = eta0
         change_factor = 5
-        eta0 = starting_eta0/change_factor  # so we don't skip first value
+        eta0 = eta0/change_factor  # so we don't skip first value
 
         # passed will become False once the learning rate is cranked up
         # enough to cause a model fit exception.
         passed = True
+        rates_tried = 0
         while passed is True:
             try:
+                rates_tried += 1
                 # increase eta0 until we see divergence
                 eta0 = eta0*change_factor
                 print('testing eta0 = {}'.format(eta0))
@@ -108,16 +113,22 @@ class LeastSquaresSGD(ClassificationBase):
                     passed = False
                 # If that passed without exception, passed = True
             except:
+                print("Model training raised an exception.")
                 passed = False
-        assert eta0 != starting_eta0, "\n eta0 didn't change; start lower"
+        assert rates_tried >= 1, "\n eta0 didn't change; start lower"
         print("Exploration for good eta0 started at {}; stopped passing when "
               "eta0  grew to {}".format(starting_eta0, eta0))
-        # return an eta almost as high as the biggest one one that
-        # didn't cause divergence
-        # todo: he says dividing by 2 works.  I'm getting bouncy w/o.
-        self.eta0 = eta0/change_factor
-        self.eta = self.eta0
-        return self.eta0
+
+        if rates_tried == 1:
+            print("--- eta0 didn't change; start 100x lower --- \n")
+            self.eta0_search_start = self.eta0_search_start/100
+            self.find_good_learning_rate()
+        else:
+            # return an eta almost as high as the biggest one one that
+            # didn't cause divergence
+            self.eta0 = eta0/change_factor
+            self.eta = self.eta0
+            print("===== Begin training with eta0 = {} ====".format(self.eta0))
 
     def apply_weights(self, X):
         """
@@ -191,15 +202,24 @@ class LeastSquaresSGD(ClassificationBase):
         errors = self.Y - Yhat
         # TODO: print a warning if the sum of the errors is large
         avg_err = np.sum(np.absolute(errors))/self.N/self.C
+        if self.verbose:
+            print("average error: {}.  (step = {})".format(avg_err, self.steps))
         if avg_err > 5:
             print("The sum of errors is concerningly big: {}".format(avg_err))
         # element-wise squaring:
         errors_squared = np.multiply(errors, errors)
         return errors_squared.sum()
 
-    def shrink_eta(self, s, s_exp=0.5):
-        # TODO: think about shrinking eta with time. :%
-        self.eta = self.eta0/(s**s_exp)
+    def shrink_eta(self, s_exp=0.5):
+        """
+        Scale eta by the number of steps, in a way that is independent of
+        the batch size.
+        :param s: steps so far
+        :param s_exp: exponential rate
+        :return:
+        """
+        epochs = (self.steps - self.fast_steps)/(self.N) + 1
+        self.eta = self.eta0/(epochs**s_exp)
 
     def results_row(self):
         """
@@ -235,14 +255,16 @@ class LeastSquaresSGD(ClassificationBase):
         Note: this has nothing to do with model fitting.
         It is only for reporting and gaining intuition.
         """
-        test_results = pd.DataFrame(
-            self.apply_model(X=self.test_X, y=self.test_y,
-                             data_name = 'testing'))
-        t_columns = [c for c in test_results.columns
-                     if 'test' in c or 'step' == c]
-        return pd.DataFrame(test_results[t_columns])
+        print("disabled for logistic SGD.  Too slow!")
+        pass
+        #test_results = pd.DataFrame(
+        #    self.apply_model(X=self.test_X, y=self.test_y,
+        #                     data_name = 'testing'))
+        #t_columns = [c for c in test_results.columns
+        #             if 'test' in c or 'step' == c]
+        #return pd.DataFrame(test_results[t_columns])
 
-    def calc_what(self):
+    def calc_w_hat(self):
         """
         \hat{w} is the average weights over the last n fittings
         """
@@ -261,7 +283,7 @@ class LeastSquaresSGD(ClassificationBase):
         if len(self.last_n_weights) >= n:
             self.last_n_weights.pop(0)
         self.last_n_weights.append(weight_array)
-        self.w_hat = self.calc_what()
+        self.w_hat = self.calc_w_hat()
 
     def run(self, max_divergence_streak_length=7, rerun=False):
 
@@ -269,6 +291,8 @@ class LeastSquaresSGD(ClassificationBase):
         if rerun:
             old_square_loss_norm = \
                 self.results.tail(1).reset_index()['(square loss)/N, training'][0]
+            print("Before re-run, epochs = {}, steps = {}".format(
+                self.epochs, self.steps))
 
         # Step until converged
         while self.epochs < self.max_epochs and not self.converged:
@@ -284,11 +308,16 @@ class LeastSquaresSGD(ClassificationBase):
 
             # loop over ~all of the data points in little batches.
             num_pts = 0
+            iter = 0
             while num_pts < self.N :
+                iter += 1
                 if self.points_sampled%self.progress_monitoring_freq == 0:
                     take_pulse = True
-                # add extra monitoring for first 5 steps.
+                # add extra monitoring for first few steps; this gives extra
+                # awareness of model divergence.
                 elif self.steps < 10:
+                    take_pulse = True
+                elif rerun and num_pts == 0:
                     take_pulse = True
                 else:
                     take_pulse = False
@@ -301,13 +330,14 @@ class LeastSquaresSGD(ClassificationBase):
                 Y_sample = Y[idx_start:idx_stop, ]
 
                 self.step(X_sample, Y_sample)
+
                 num_pts += X_sample.shape[0]  # loop-scoped count
                 last_pass = num_pts == self.N # True if last loop in epoch
                 self.points_sampled += X_sample.shape[0]  # every point ever
 
                 # assess \hat{w} every N points
                 # or the first pass of a re-run
-                if last_pass or rerun:
+                if last_pass or (rerun and iter==1):
                     # update the average of recent weight vectors
                     w_hat_variance, w_hat_percent_improvement = \
                         self.w_hat_vitals(old_w_hat_variance)
@@ -315,9 +345,17 @@ class LeastSquaresSGD(ClassificationBase):
                 # take the more expensive pulse, using Yhat, which
                 # requires kernel transformatin of all of X.
                 if take_pulse:
+                    if self.verbose:
+                        print("Vitals start:{}.".format(self.datetime()))
                     self.record_vitals()
+                    if self.verbose:
+                        print("Vitals done:{}.".format(self.datetime()))
                     square_loss_norm = \
                         self.results.tail(1).reset_index()['(square loss)/N, training'][0]
+                    if square_loss_norm/self.N > 1e6:
+                        s = "square loss/N/N grew to {}".format(
+                            square_loss_norm/self.N)
+                        raise ModelFitExcpetion(s)
                 if take_pulse and self.epochs > 1:
                     square_loss_percent_improvement = self.percent_change(
                         new = square_loss_norm, old = old_square_loss_norm)
@@ -348,17 +386,29 @@ class LeastSquaresSGD(ClassificationBase):
 
             # shrink learning rate
             #self.shrink_eta(self.epochs - fast_convergence_epochs + 1)
-            self.shrink_eta(self.epochs)
+            self.shrink_eta()
 
         print('final normalized training (square loss): {}'.format(square_loss_norm))
         self.results.reset_index(drop=True, inplace=True)
 
     def run_longer(self, epochs, progress_monitoring_freq=None,
-                   delta_percent=None, max_divergence_streak_length=None):
+                   delta_percent=None, max_divergence_streak_length=None,
+                   fast_steps=None):
+        print("Run model (currently with with {} steps) longer."
+              "".format(self.steps))
         if self.converged:
             print("Don't run a previously converged model longer without"
                   "changing the convergence criteria.")
             self.converged = False
+
+        # increase the learning rate by specifying a number of fast steps.
+        # This is subtracted from self.steps when scaling eta by the number of
+        # steps
+        if fast_steps is not None:
+            if self.fast_steps > 0 and self.fast_steps is not None:
+                print("Warning: number of fast steps was already set to {}.  "
+                      "Changing it to {}".format(self.fast_steps, fast_steps))
+            self.fast_steps = fast_steps
 
         self.max_epochs = self.max_epochs + epochs
 
@@ -374,7 +424,7 @@ class LeastSquaresSGD(ClassificationBase):
             self.run(rerun=True)
 
     def w_hat_variance(self):
-        return np.var(self.calc_what())
+        return np.var(self.calc_w_hat())
 
     def w_hat_vitals(self, old_w_hat_variance):
         self.update_w_hat(self.W, n=5)
@@ -397,9 +447,9 @@ class LeastSquaresSGD(ClassificationBase):
         row_results = pd.DataFrame(self.results_row())
 
         # also find the square loss & 0/1 loss using test data.
-        if (self.test_X is not None) and (self.test_y is not None):
-            test_results = self.assess_model_on_test_data()
-            row_results = pd.merge(row_results, test_results)
+        #if (self.test_X is not None) and (self.test_y is not None):
+        #    test_results = self.assess_model_on_test_data()
+        #    row_results = pd.merge(row_results, test_results)
 
         self.results = pd.concat([self.results, row_results], axis=0)
 
@@ -490,4 +540,9 @@ class LeastSquaresSGD(ClassificationBase):
                      ylabel= "\hat{w} variance % change",
                      y0_line=True, logx=False, logy=False,
                      colors=None, figsize=(4, 3))
+
+    @staticmethod
+    def datetime():
+        now = datetime.datetime.now()
+        return now.strftime("%Y-%m-%d %H:%M:%S")
 
