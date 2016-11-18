@@ -1,6 +1,48 @@
 import numpy as np
 from scipy.spatial.distance import pdist
 
+class Fourier:
+    def __init__(self, X, k=60000, sigma=None):
+        self.X = X
+        self.k = k
+        self.N = X.shape[0]
+        self.d = k
+        if sigma is None:
+            sample_size = min(self.N, max(1000, int(X.shape[0]/10)))
+            self.set_sigma(sample_size)
+        self.generate_feature_vectors()
+        pass
+
+    def set_sigma(self, sample_size):
+        # About 2000 is good.
+        print('determine kernel bandwidth using {} points.'.format(sample_size))
+
+        X_sample_indices = np.random.choice(self.N, sample_size, replace=False)
+        X_sample = self.X[X_sample_indices]
+        assert X_sample is not None
+
+        pairwise_distances = pdist(X_sample)
+        # TODO: try mean instead of median.
+        median_dist = np.median(pairwise_distances)
+        print("median distance for {} samples from N: {}".format(
+            sample_size, median_dist))
+        self.sigma = median_dist
+
+    def generate_feature_vectors(self):
+        """
+        independently sample every coordinate for every vector from a
+        standard normal distribution (with unit variance).
+        """
+        n = self.X.shape[1]
+        self.vectors = np.random.randn(n, self.k)
+
+    def transform(self, X):
+        dot_prod = X.dot(self.vectors)
+        return np.exp(dot_prod/self.sigma)
+
+    def info(self):
+        return {'sigma':[self.sigma]}
+
 
 class RBFKernel:
     def __init__(self, X, sigma=None):
