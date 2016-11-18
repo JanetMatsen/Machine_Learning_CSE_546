@@ -116,6 +116,9 @@ class Pca:
     def transform_number_up(self, xi, num_eigenvectors):
         W = self.eigenvects[:,0:num_eigenvectors]
         down = self.transform_number_down(xi, num_eigenvectors)
+        # add the center back on
+        if self.center:
+            X = self.X + self.X_center
         return down.dot(W.T)
 
     def find_first(self, number):
