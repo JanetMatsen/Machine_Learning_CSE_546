@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 from classification_base import ClassificationBase
 from classification_base import ModelFitExcpetion
-from rbf_kernel import RBFKernel
+from kernel import RBFKernel, Fourier
 
 
 class LeastSquaresSGD(ClassificationBase):
@@ -70,7 +70,8 @@ class LeastSquaresSGD(ClassificationBase):
         self.Yhat = None
 
     def find_good_learning_rate(self, max_divergence_streak_length=3,
-                                max_expochs=10):
+                                max_expochs=5, max_pts = 1000):
+        # TODO: bump back up from 5, and raise max_pts
         """
         Follow Sham's advice of cranking up learning rate until the model
         diverges, then cutting it back down 50%.
@@ -88,18 +89,34 @@ class LeastSquaresSGD(ClassificationBase):
         change_factor = 5
         eta0 = eta0/change_factor  # so we don't skip first value
 
+        num_pts = min(max_pts, self.N)
+        random_indices = np.random.choice(self.N, num_pts, replace=False)
+        X = self.X[random_indices]
+        y = self.y[random_indices]
+        model = self.copy()
+        model.replace_X_and_y(X, y)
+        def reset_model(model):
+            model.epochs = 1
+            model.points_sampled = 0
+            model.converged = False
+            model.diverged = False
+            model.w_hat_variance_df = pd.DataFrame()
+            model.w_hat = None
+            model.steps = 0
+
         # passed will become False once the learning rate is cranked up
         # enough to cause a model fit exception.
         passed = True
         rates_tried = 0
         while passed is True:
+            import pdb; pdb.set_trace()
             try:
                 rates_tried += 1
                 # increase eta0 until we see divergence
                 eta0 = eta0*change_factor
                 print('testing eta0 = {}'.format(eta0))
                 # Test high learning rates until the model diverges.
-                model = self.copy()
+                reset_model(model)
                 # reset weights (can't assert!)
                 model.W = np.zeros(model.W.shape)
                 model.progress_monitoring_freq = model.N
