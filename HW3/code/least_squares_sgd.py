@@ -19,12 +19,28 @@ class LeastSquaresSGD(ClassificationBase):
     def __init__(self, X, y, eta0=None, W=None,
                  kernel=Fourier,
                  kernel_kwargs=None,
-                 eta0_search_start=1, # gets normalized by N
-                 max_epochs=5,  # of times passing through N pts
+                 eta0_search_start=0.1, # gets normalized by N
+                 max_epochs=50,  # of times passing through N pts
                  batch_size=10,
                  progress_monitoring_freq=15000,
                  delta_percent=0.01, verbose=False,
-                 test_X=None, test_y=None):
+                 test_X=None, test_y=None, assess_test_data_during_fitting=True):
+
+        # check data
+        assert X.shape[0] == y.shape[0]
+        # Sometimes we check the loss of test_X and test_y during fitting
+        if test_X is None and test_y is None:
+            print("No test data was provided.")
+        self.test_X = test_X  # ok if None
+        self.test_y = test_y  # ok if None
+        self.assess_test_data_during_fitting = assess_test_data_during_fitting
+        if assess_test_data_during_fitting:
+            print('Only assess test data during final model fitting, not '
+                  'during hyperparameter exploration.  (Slows fitting down!)')
+            assert test_X is not None and test_y is not None, \
+                "Specify `assess_test_data_during_fitting=False` if not supplying test data"
+            assert test_X.shape[0] == test_y.shape[0]
+
         # call the base class's methods first
         super(LeastSquaresSGD, self).__init__(X=X, y=y, W=W)
 
@@ -42,10 +58,7 @@ class LeastSquaresSGD(ClassificationBase):
         self.steps = 0
         self.fast_steps = 0
         self.verbose = verbose
-        if test_X is None and test_y is None:
-            print("No test data was provided.")
-        self.test_X = test_X
-        self.test_y = test_y
+
         self.batch_size = batch_size
         assert progress_monitoring_freq%batch_size == 0, \
             "need to monitor at frequencies that are multiples of the " \
@@ -110,17 +123,8 @@ class LeastSquaresSGD(ClassificationBase):
         X = self.X[random_indices]
         y = self.y[random_indices]
         model = self.copy()
+        model.assess_test_data_during_fitting = False
         model.replace_X_and_y(X, y)
-        #def reset_model(model):
-        #    # TODO: why can't I refactor this? Goes into infinite cycle.
-        #    model.epochs = 1
-        #    model.points_sampled = 0
-        #    model.converged = False
-        #    model.diverged = False
-        #    model.w_hat_variance_df = pd.DataFrame()
-        #    model.w_hat = None
-        #    model.steps = 0
-        #    model.eta0_search_calls = 0
 
         # passed will become False once the learning rate is cranked up
         # enough to cause a model fit exception.
@@ -133,7 +137,7 @@ class LeastSquaresSGD(ClassificationBase):
                 rates_tried += 1
                 # increase eta0 until we see divergence
                 eta0 = eta0*change_factor
-                print('testing eta0 = {}.  (Try # {})'.format(eta0, rates_tried))
+                print('testing eta0 = {}.  (Try # {})'.format(eta0, self.eta0_search_calls))
                 # Test high learning rates until the model diverges.
                 model.reset_model()
                 # reset weights (can't assert!)
@@ -291,20 +295,6 @@ class LeastSquaresSGD(ClassificationBase):
         row.update(kernel_info)
         self.Yhat = None  # wipe it so it can't be used incorrectly later
         return row
-
-    def assess_model_on_test_data(self):
-        """
-        Note: this has nothing to do with model fitting.
-        It is only for reporting and gaining intuition.
-        """
-        print("disabled for logistic SGD.  Too slow!")
-        pass
-        #test_results = pd.DataFrame(
-        #    self.apply_model(X=self.test_X, y=self.test_y,
-        #                     data_name = 'testing'))
-        #t_columns = [c for c in test_results.columns
-        #             if 'test' in c or 'step' == c]
-        #return pd.DataFrame(test_results[t_columns])
 
     def calc_w_hat(self):
         """
@@ -489,11 +479,25 @@ class LeastSquaresSGD(ClassificationBase):
         row_results = pd.DataFrame(self.results_row())
 
         # also find the square loss & 0/1 loss using test data.
-        #if (self.test_X is not None) and (self.test_y is not None):
-        #    test_results = self.assess_model_on_test_data()
-        #    row_results = pd.merge(row_results, test_results)
+        if self.assess_test_data_during_fitting:
+            assert (self.test_X is not None) and (self.test_y is not None), \
+                "Asked for test results but no test data was provided."
+            test_results = self.assess_model_on_test_data()
+            row_results = pd.merge(row_results, test_results)
 
         self.results = pd.concat([self.results, row_results], axis=0)
+
+    def assess_model_on_test_data(self):
+        """
+        Note: this has nothing to do with model fitting.
+        It is only for reporting and gaining intuition.
+        """
+        test_results = pd.DataFrame(
+            self.apply_model(X=self.test_X, y=self.test_y,
+                             data_name = 'testing'))
+        t_columns = [c for c in test_results.columns
+                     if 'test' in c or 'step' == c]
+        return pd.DataFrame(test_results[t_columns])
 
     def test_convergence(self, square_loss_percent_improvement,
                          w_hat_percent_improvement):

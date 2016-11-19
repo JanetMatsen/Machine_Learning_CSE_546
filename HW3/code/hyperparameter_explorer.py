@@ -10,7 +10,18 @@ import pandas as pd
 class HyperparameterExplorer:
     def __init__(self, X, y, classifier, score_name, primary_hyperparameter,
                  validation_split=0.1, test_X=None, test_y=None,
+                 # only used for final training on all of the training data.
+                 assess_test_data_during_fitting=True,
                  use_prev_best_weights=True):
+
+        # check data
+        assert X.shape[0] == y.shape[0]
+        # Sometimes we check the loss of test_X and test_y during fitting
+        if test_X is None and test_y is None:
+            print("No test data was provided.")
+        if test_X is not None and test_y is not None:
+            assert test_X.shape[0] == test_y.shape[0]
+
         # model_partial is a model that's missing one or more parameters.
         self.all_training_X = X  # reserved for final training after hyper sweep.
         self.all_training_y = y  # reserved for final training after hyper sweep.
@@ -31,8 +42,8 @@ class HyperparameterExplorer:
               'data: {}, {}'.format(np.var(self.train_y),
                                     np.var(self.validation_y)))
 
-
         if test_X is not None and test_y is not None:
+            self.assess_test_data_during_fitting = assess_test_data_during_fitting
             self.test_X = test_X
             self.test_y = test_y
             self.model = partial(classifier,
@@ -44,16 +55,18 @@ class HyperparameterExplorer:
         # keep track of model numbers.
         self.num_models = 0
         self.models = {}
+
         # the score that will be used to determine which model is best.
         self.training_score_name = score_name
-        self.validation_score_name = re.sub("training", "validation", score_name)
         self.score_name = re.sub("training", "", score_name)
+        self.validation_score_name = re.sub("training", "validation", score_name)
         self.use_prev_best_weights = use_prev_best_weights
 
-    def train_model(self, kernel_kwargs, model_kwargs):
+    def train_model(self, kernel_kwargs, model_kwargs, assess_test_data_during_fitting=False):
         # train model
         # check that model was made
         try:
+            model_kwargs['assess_test_data_during_fitting'] = assess_test_data_during_fitting
             m = self.model(kernel_kwargs=kernel_kwargs, **model_kwargs)
             # set weights to the best found so far
             # Note: this is silly for non-iterative solvers like Ridge.
@@ -64,7 +77,7 @@ class HyperparameterExplorer:
                     m.replace_weights(best_weights.copy())
 
         except NameError:
-            print("model failed for {}".format(**model_kwargs))
+            print("model construction failed for {}".format(**model_kwargs))
 
         self.num_models += 1
         self.model_number = self.num_models
@@ -73,12 +86,22 @@ class HyperparameterExplorer:
         self.models[self.num_models] = m
         print("saved as model # {}".format(self.num_models))
 
+        # Check if model converged, and assess it if so
+        if m.converged:
+            print("Model converged; assess it using validation data.")
+
+        # assess the model even if it didn't converge
+        self.assess_model(m)
+
+    def assess_model(self, model):
+        m = model
         # get results
         outcome = m.results.tail(1).reset_index()
         if len(outcome) < 1:
             print("model didn't work..?")
         # Save the model number for so we can look up the model later
         outcome['model number'] = [self.num_models]
+        outcome['converged'] = [m.converged]
         print('{}:{}'.format(self.training_score_name,
                              outcome[self.training_score_name][0]))
 
@@ -98,7 +121,7 @@ class HyperparameterExplorer:
 
         # Plot log loss vs time if applicable.
         try:
-            m.plot_loss_and_eta()
+            m.plot_loss_normalized_and_eta()
             m.plot_w_hat_history()
         except:
             print("not all plotting calls worked.")
@@ -192,6 +215,7 @@ class HyperparameterExplorer:
         #print(self.best('summary'))
         print("getting best model.")
         self.final_model = self.best('model').copy()
+        self.final_model.assess_test_data_during_fitting = self.assess_test_data_during_fitting
         print(self.final_model.results.tail(1))
 
         # replace the smaller training sets with the whole training set.
@@ -207,7 +231,7 @@ class HyperparameterExplorer:
 
     def evaluate_test_data(self):
         test_results = self.final_model.apply_model(
-            X = self.test_X, y = self.test_y, data_name="test")
+            X=self.test_X, y=self.test_y, data_name="test")
         print(pd.DataFrame(test_results).T)
 
 

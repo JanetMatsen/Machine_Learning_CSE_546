@@ -110,14 +110,14 @@ class ClassificationBase:
             return False
 
     def replace_X_and_y(self, X, y):
-        self.X = X.copy()
+        self.X = X
         self.N = X.shape[0] # num points may change.
         if self.is_sparse():
             self.X = sp.csc_matrix(X)
         if y.shape == (self.N, ) and not self.binary:
             self.y = np.reshape(y, newshape=(self.N, 1))
         else:
-            self.y = y.copy()
+            self.y = y
         if not self.binary:
             self.make_Y_from_y()
             assert self.Y.shape[0] == y.shape[0]
