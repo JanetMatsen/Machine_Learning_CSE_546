@@ -219,10 +219,12 @@ class ClassificationBase:
         fig, axs = plt.subplots(2, 1, figsize=(5, 4))
         colors = ['c','b']
         if pandas:
+            y1_range = (0, max(self.results[y1])*1.05)
+            y2_range = (0, max(self.results[y2])*1.05)
             self.results.plot(kind='scatter', ax=axs[0], x=x, y=y1,
-                              color=colors[0], logx=True)
+                              color=colors[0], logx=True, ylim=y1_range)
             self.results.plot(kind='scatter', ax=axs[1], x=x, y=y2,
-                              color=colors[1], logx=True)
+                              color=colors[1], logx=True, ylim=y2_range)
         else: # use matplotlib
             x=self.results[x]
             y1=self.results[y1]
@@ -244,7 +246,11 @@ class ClassificationBase:
             loss = "-(log loss), training"
         elif len([s for s in self.results.columns.tolist() if 'square loss' in s]) > 0:
             loss = "(square loss), training"
-        self.plot_2_subplots(x='step',
+        if self.steps > 900:
+            x = 'epoch (fractional)'
+        else:
+            x = 'step'
+        self.plot_2_subplots(x=x,
                              y1=loss,
                              y2='eta',
                              pandas=pandas)

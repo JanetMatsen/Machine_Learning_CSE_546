@@ -19,7 +19,7 @@ class LeastSquaresSGD(ClassificationBase):
     def __init__(self, X, y, eta0=None, W=None,
                  kernel=Fourier,
                  kernel_kwargs=None,
-                 eta0_search_start=1000, # gets normalized by N
+                 eta0_search_start=1, # gets normalized by N
                  max_epochs=5,  # of times passing through N pts
                  batch_size=10,
                  progress_monitoring_freq=15000,
@@ -257,6 +257,7 @@ class LeastSquaresSGD(ClassificationBase):
             "(square loss)/N, training": [square_loss/self.N],
             "step": [self.steps],
             "epoch": [self.epochs],
+            "epoch (fractional)": [(self.steps - self.fast_steps)/(self.N) + 1],
             "batch size": [self.batch_size],
             "points": [self.points_sampled],
             }
