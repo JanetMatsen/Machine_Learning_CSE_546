@@ -126,7 +126,7 @@ class ClassificationBase:
         if "W" in self.__dict__.keys():
             if self.is_sparse():
                 self.W = sp.csc_matrix(new_weights)
-        elif "w" in m.__dict__.keys():
+        elif "w" in self.__dict__.keys():
             self.w = new_weights
 
     def apply_model(self, X, y, data_name):
