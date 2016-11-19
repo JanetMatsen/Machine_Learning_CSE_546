@@ -10,6 +10,8 @@ class Fourier:
         if sigma is None:
             sample_size = min(self.N, max(1000, int(X.shape[0]/10)))
             self.set_sigma(sample_size)
+        else:
+            self.sigma = sigma
         self.generate_feature_vectors()
         pass
 

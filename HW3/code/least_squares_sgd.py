@@ -62,6 +62,7 @@ class LeastSquaresSGD(ClassificationBase):
 
         self.eta0_search_start = eta0_search_start
         if eta0 is None:
+            self.eta0_search_calls = 0
             self.find_good_learning_rate()
         else:
             self.eta0 = eta0
@@ -96,6 +97,7 @@ class LeastSquaresSGD(ClassificationBase):
         model = self.copy()
         model.replace_X_and_y(X, y)
         def reset_model(model):
+            # TODO: why can't I refactor this? Goes into infinite cycle.
             model.epochs = 1
             model.points_sampled = 0
             model.converged = False
@@ -103,17 +105,20 @@ class LeastSquaresSGD(ClassificationBase):
             model.w_hat_variance_df = pd.DataFrame()
             model.w_hat = None
             model.steps = 0
+            model.eta0_search_calls = 0
 
         # passed will become False once the learning rate is cranked up
         # enough to cause a model fit exception.
         passed = True
         rates_tried = 0
-        while passed is True:
+        max_rates = 30
+        while passed is True and self.eta0_search_calls  < max_rates:
             try:
+                self.eta0_search_calls  += 1
                 rates_tried += 1
                 # increase eta0 until we see divergence
                 eta0 = eta0*change_factor
-                print('testing eta0 = {}'.format(eta0))
+                print('testing eta0 = {}.  (Try # {})'.format(eta0, rates_tried))
                 # Test high learning rates until the model diverges.
                 reset_model(model)
                 # reset weights (can't assert!)
@@ -135,9 +140,14 @@ class LeastSquaresSGD(ClassificationBase):
         print("Exploration for good eta0 started at {}; stopped passing when "
               "eta0  grew to {}".format(starting_eta0, eta0))
 
+        if self.eta0_search_calls == max_rates:
+            print("search for eat0 tried {} values and failed to converge."
+                  "".format(max_rates))
+            raise ModelFitExcpetion("eta0 search failed")
+
         if rates_tried == 1:
             print("--- eta0 didn't change; start 100x lower --- \n")
-            self.eta0_search_start = self.eta0_search_start/100
+            self.eta0_search_start = self.eta0_search_start/5**3
             self.find_good_learning_rate()
         else:
             # return an eta almost as high as the biggest one one that

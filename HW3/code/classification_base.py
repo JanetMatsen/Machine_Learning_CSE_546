@@ -241,11 +241,17 @@ class ClassificationBase:
             plt.title(title)
         plt.tight_layout()
 
-    def plot_loss_and_eta(self, pandas=True):
+    def plot_loss_and_eta(self, pandas=True, logloss=False):
         if len([s for s in self.results.columns.tolist() if 'log loss' in s]) > 0:
-            loss = "-(log loss), training"
+            if logloss:
+                loss = "-(log loss)/N, training"
+            else:
+                loss = "-(log loss), training"
         elif len([s for s in self.results.columns.tolist() if 'square loss' in s]) > 0:
-            loss = "(square loss), training"
+            if logloss:
+                loss = "(square loss)/N, training"
+            else:
+                loss = "(square loss), training"
         if self.steps > 900:
             x = 'epoch (fractional)'
         else:
@@ -256,10 +262,7 @@ class ClassificationBase:
                              pandas=pandas)
 
     def plot_log_loss_normalized_and_eta(self, pandas=True):
-            self.plot_2_subplots(x='step',
-                                 y1='-(log loss)/N, training',
-                                 y2='eta',
-                                 pandas=pandas)
+        self.plot_loss_and_eta(logloss=True, pandas=pandas)
 
     @staticmethod
     def shuffle(X, y):
