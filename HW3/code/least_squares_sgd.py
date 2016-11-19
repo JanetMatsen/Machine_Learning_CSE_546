@@ -70,6 +70,21 @@ class LeastSquaresSGD(ClassificationBase):
         # \hat{Y} is expensive to calc, so share it across functions
         self.Yhat = None
 
+    def copy(self):
+        model = super(LeastSquaresSGD, self).copy()
+        model.reset_model()
+        return model
+
+    def reset_model(self):
+        self.epochs = 1
+        self.points_sampled = 0
+        self.converged = False
+        self.diverged = False
+        self.w_hat_variance_df = pd.DataFrame()
+        self.w_hat = None
+        self.steps = 0
+        self.eta0_search_calls = 0
+
     def find_good_learning_rate(self, max_divergence_streak_length=3,
                                 max_expochs=5, max_pts = 1000):
         # TODO: bump back up from 5, and raise max_pts
@@ -96,16 +111,16 @@ class LeastSquaresSGD(ClassificationBase):
         y = self.y[random_indices]
         model = self.copy()
         model.replace_X_and_y(X, y)
-        def reset_model(model):
-            # TODO: why can't I refactor this? Goes into infinite cycle.
-            model.epochs = 1
-            model.points_sampled = 0
-            model.converged = False
-            model.diverged = False
-            model.w_hat_variance_df = pd.DataFrame()
-            model.w_hat = None
-            model.steps = 0
-            model.eta0_search_calls = 0
+        #def reset_model(model):
+        #    # TODO: why can't I refactor this? Goes into infinite cycle.
+        #    model.epochs = 1
+        #    model.points_sampled = 0
+        #    model.converged = False
+        #    model.diverged = False
+        #    model.w_hat_variance_df = pd.DataFrame()
+        #    model.w_hat = None
+        #    model.steps = 0
+        #    model.eta0_search_calls = 0
 
         # passed will become False once the learning rate is cranked up
         # enough to cause a model fit exception.
@@ -120,7 +135,7 @@ class LeastSquaresSGD(ClassificationBase):
                 eta0 = eta0*change_factor
                 print('testing eta0 = {}.  (Try # {})'.format(eta0, rates_tried))
                 # Test high learning rates until the model diverges.
-                reset_model(model)
+                model.reset_model()
                 # reset weights (can't assert!)
                 model.W = np.zeros(model.W.shape)
                 model.progress_monitoring_freq = model.N
