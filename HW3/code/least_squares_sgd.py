@@ -20,7 +20,7 @@ class LeastSquaresSGD(ClassificationBase):
                  kernel=Fourier,
                  kernel_kwargs=None,
                  eta0_search_start=1000, # gets normalized by N
-                 max_epochs=50,  # of times passing through N pts
+                 max_epochs=5,  # of times passing through N pts
                  batch_size=10,
                  progress_monitoring_freq=15000,
                  delta_percent=0.01, verbose=False,
@@ -359,11 +359,13 @@ class LeastSquaresSGD(ClassificationBase):
                 # take the more expensive pulse, using Yhat, which
                 # requires kernel transformatin of all of X.
                 if take_pulse:
-                    if self.verbose:
-                        print("Vitals start:{}.".format(self.datetime()))
+                    start_time = datetime.datetime.now()
                     self.record_vitals()
                     if self.verbose:
-                        print("Vitals done:{}.".format(self.datetime()))
+                        stop_time = datetime.datetime.now()
+                        print("Vitals done: {}.".format(
+                            self.time_delta(start_time, stop_time)))
+
                     square_loss_norm = \
                         self.results.tail(1).reset_index()['(square loss)/N, training'][0]
                     if square_loss_norm/self.N > 1e3:
@@ -559,4 +561,14 @@ class LeastSquaresSGD(ClassificationBase):
     def datetime():
         now = datetime.datetime.now()
         return now.strftime("%Y-%m-%d %H:%M:%S")
+
+    def time_delta(self, start, stop):
+        total_seconds = (stop - start).total_seconds()
+        hours, remainder = divmod(total_seconds,60*60)
+        minutes, seconds = divmod(remainder,60)
+        seconds = int(np.round(seconds))
+        if hours > 0:
+            return '{}:{}:{}'.format(hours,minutes,seconds)
+        else:
+            return '{}:{}'.format(minutes,seconds)
 
