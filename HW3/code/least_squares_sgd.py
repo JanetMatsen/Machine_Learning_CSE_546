@@ -17,11 +17,11 @@ class LeastSquaresSGD(ClassificationBase):
     No bias
     """
     def __init__(self, X, y, eta0=None, W=None,
-                 kernel=RBFKernel,
+                 kernel=Fourier,
                  kernel_kwargs=None,
-                 eta0_search_start=1000,
-                 max_epochs=10**6,  # of times passing through N pts
-                 batch_size=100,
+                 eta0_search_start=1000, # gets normalized by N
+                 max_epochs=50,  # of times passing through N pts
+                 batch_size=10,
                  progress_monitoring_freq=15000,
                  delta_percent=0.01, verbose=False,
                  test_X=None, test_y=None):
@@ -109,7 +109,6 @@ class LeastSquaresSGD(ClassificationBase):
         passed = True
         rates_tried = 0
         while passed is True:
-            import pdb; pdb.set_trace()
             try:
                 rates_tried += 1
                 # increase eta0 until we see divergence
@@ -145,7 +144,7 @@ class LeastSquaresSGD(ClassificationBase):
             # didn't cause divergence
             self.eta0 = eta0/change_factor
             self.eta = self.eta0
-            print("===== Begin training with eta0 = {} ====".format(self.eta0))
+            print("===== eta0 search landed on {} ====".format(self.eta0))
 
     def apply_weights(self, X):
         """
@@ -315,7 +314,7 @@ class LeastSquaresSGD(ClassificationBase):
         while self.epochs < self.max_epochs and not self.converged:
 
             if self.verbose:
-                print('Loop through all the data. {}th time'.format(self.epochs))
+                print('Begin epoch {}'.format(self.epochs))
             # Shuffle each time we loop through the entire data set.
             X, Y = self.shuffle(self.X.copy(), self.Y.copy())
 
@@ -332,8 +331,6 @@ class LeastSquaresSGD(ClassificationBase):
                     take_pulse = True
                 # add extra monitoring for first few steps; this gives extra
                 # awareness of model divergence.
-                elif self.steps < 10:
-                    take_pulse = True
                 elif rerun and num_pts == 0:
                     take_pulse = True
                 else:
@@ -369,7 +366,7 @@ class LeastSquaresSGD(ClassificationBase):
                         print("Vitals done:{}.".format(self.datetime()))
                     square_loss_norm = \
                         self.results.tail(1).reset_index()['(square loss)/N, training'][0]
-                    if square_loss_norm/self.N > 1e6:
+                    if square_loss_norm/self.N > 1e3:
                         s = "square loss/N/N grew to {}".format(
                             square_loss_norm/self.N)
                         raise ModelFitExcpetion(s)
