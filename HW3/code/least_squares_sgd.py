@@ -221,20 +221,37 @@ class LeastSquaresSGD(ClassificationBase):
             "shape of W is {}".format(self.W.shape)
         self.steps += 1
 
-    def calc_Yhat(self, chunk_size=10):
+    def calc_Yhat(self, chunk_size=10, calc_for_W_bar = True):
         """
         Produce an (NxC) array of classes predictions on X, which has *not*
         been transformed by the kernel.
         """
+        assert self.W is not None, "Can't calc \hat{Y} without weights, W."
         X = self.X
-        calc_for_W_bar = self.check_W_bar_vitals
 
         if X.shape[0] < chunk_size:
             chunk_size = X.shape[0]
         N = X.shape[0]
         n = 0
         if calc_for_W_bar:
+            assert len(self.last_n_weights) > 0, "need weights for \bar{W}"
             Wbar = self.calc_W_bar()
+            assert Wbar is not None
+
+        def build_up_Yhat(X_chunk, Yhat, weights):
+            assert weights is not None
+            Yhat_chunk = X_chunk.dot(weights)
+            if Yhat_chunk.shape != (X_chunk.shape[0], self.C):
+                import pdb; pdb.set_trace()
+            assert Yhat_chunk.shape == (X_chunk.shape[0], self.C)
+            if Yhat is None:
+                Yhat = Yhat_chunk
+            else:
+                Yhat = np.vstack([Yhat, Yhat_chunk])
+            return Yhat
+
+        Yhat = None
+        Yhat_Wbar = None
 
         # for each chunk of X, transform to kernel and find Yhat.
         while n < N:
@@ -243,27 +260,19 @@ class LeastSquaresSGD(ClassificationBase):
             kernel_chunk = self.kernel.transform(X_chunk)
             assert kernel_chunk.shape == (X_chunk.shape[0], self.kernel.d)
 
-            Yhat_chunk = kernel_chunk.dot(self.W)
+            Yhat = build_up_Yhat(X_chunk=kernel_chunk, Yhat=Yhat, weights=self.W)
             if calc_for_W_bar:
-                Yhat_Wbar_chunk = kernel_chunk.dot(Wbar)
-
-            if n == 0: # first pass through
-                Yhat = Yhat_chunk
-                if calc_for_W_bar:
-                    Yhat_Wbar = Yhat_Wbar_chunk
-            else:
-                Yhat = np.vstack((Yhat, Yhat_chunk))
-                if calc_for_W_bar:
-                    Yhat_Wbar = np.vstack([Yhat_Wbar, Yhat_Wbar_chunk])
+                Yhat_Wbar = build_up_Yhat(X_chunk=kernel_chunk, Yhat=Yhat_Wbar,
+                                          weights=Wbar)
 
             n += X_chunk.shape[0]
 
         assert Yhat.shape == (N, self.C)
         if calc_for_W_bar:
             assert Yhat_Wbar.shape == (N, self.C)
-            return Yhat, Yhat_Wbar
-        else:
-            return Yhat
+
+        # Yhat_Wbar mis None if you didn't ask for it
+        return Yhat, Yhat_Wbar
 
     def predict(self):
         """
@@ -311,10 +320,19 @@ class LeastSquaresSGD(ClassificationBase):
         Expensive!  Computes stuff for the (Nxd) X matrix.
         """
         # append on logistic regression-specific results
-        if self.check_W_bar_vitals:
-            self.Yhat, self.Yhat_Wbar = self.calc_Yhat()
+        if len(self.last_n_weights) >= 1 and self.check_W_bar_vitals:
+            calc_for_W_bar = True
         else:
-            self.Yhat = self.calc_Yhat()
+            # can't calculate anything before the weights have been set once.
+            calc_for_W_bar = False
+
+        if self.W is None:
+            calc_Yhat = False
+        else:
+            calc_Yhat = True
+
+        self.Yhat, self.Yhat_Wbar = \
+            self.calc_Yhat(calc_for_W_bar = calc_for_W_bar)
 
         # call parent class for universal metrics
         row = super(LeastSquaresSGD, self).results_row()
@@ -335,12 +353,14 @@ class LeastSquaresSGD(ClassificationBase):
         kernel_info = self.kernel.info()
         row.update(kernel_info)
         self.Yhat = None  # wipe it so it can't be used incorrectly later
+        self.Yhat_Wbar = None  # wipe it so it can't be used incorrectly later
         return row
 
     def calc_W_bar(self):
         """
         \bar{W} is the average weights over the last n fittings
         """
+        assert len(self.last_n_weights) > 0, "need weights to calc \bar{W}"
         return np.array(self.last_n_weights).sum(axis=0)/\
                len(self.last_n_weights)
 
@@ -366,6 +386,11 @@ class LeastSquaresSGD(ClassificationBase):
                 self.results.tail(1).reset_index()['(square loss)/N, training'][0]
             print("Before re-run, epochs = {}, steps = {}".format(
                 self.epochs, self.steps))
+        if len(self.last_n_weights) == 0:
+            W_bar_available = False
+        elif len(self.last_n_weights) >= 1:
+            W_bar_available = True
+
 
         # Step until converged
         while self.epochs < self.max_epochs and not self.converged:
@@ -377,7 +402,10 @@ class LeastSquaresSGD(ClassificationBase):
 
             # initialize the statistic for tracking variance
             # Should be zero if weights are initially zero.
-            old_W_bar_variance = self.W_bar_variance()
+            if W_bar_available:
+                old_W_bar_variance = self.W_bar_variance()
+            else:
+                old_W_bar_variance = 0
 
             # loop over ~all of the data points in little batches.
             num_pts = 0
@@ -417,7 +445,7 @@ class LeastSquaresSGD(ClassificationBase):
                 # requires kernel transformatin of all of X.
                 if take_pulse:
                     start_time = datetime.datetime.now()
-                    self.record_vitals()
+                    self.record_vitals(W_bar_available=W_bar_available)
                     if self.verbose:
                         stop_time = datetime.datetime.now()
                         print("Vitals done: {}.".format(
@@ -501,6 +529,7 @@ class LeastSquaresSGD(ClassificationBase):
             self.run(rerun=True)
 
     def W_bar_variance(self):
+        assert len(self.last_n_weights) > 0, "Need weights to calc weight var"
         return np.var(self.calc_W_bar())
 
     def W_bar_vitals(self, old_W_bar_variance):
@@ -520,13 +549,13 @@ class LeastSquaresSGD(ClassificationBase):
 
         return new_W_bar_variance, W_bar_percent_improvement
 
-    def record_vitals(self):
+    def record_vitals(self, W_bar_available):
         row_results = pd.DataFrame(self.results_row())
         if row_results.shape[0] != 1:
             import pdb; pdb.set_trace()
         assert row_results.shape[0] == 1, "row_results should have 1 row"
 
-        if self.check_W_bar_vitals:
+        if self.check_W_bar_vitals and W_bar_available:
             W_bar_results = self.assess_model_using_W_bar()
             if W_bar_results.shape[0] != 1:
                 import pdb; pdb.set_trace()
@@ -554,18 +583,19 @@ class LeastSquaresSGD(ClassificationBase):
 
         # Make a copy of the model and replace the weights with the W_bar
         # weights
+        assert len(self.last_n_weights) > 0, "Need weights to do \\bar{W} stuff"
         model = self.copy(reset=False)
         model.W = self.calc_W_bar()
 
         # Get the results, the usual way:
-        all_W_bar_results = model.resuls_row()
+        all_W_bar_results = model.results_row()
         results = {re.sub("training", "bar{W}", k): v
            for k, v in all_W_bar_results.items()}
         # don't need step if merging on.
-        columns = [c for c in all_W_bar_results.keys if 'bar{W}']
-        W_bar_results = all_W_bar_results[columns]
-
-        return pd.DataFrame(columns[W_bar_results])
+        columns = [c for c in results.keys() if 'bar{W}' in c]
+        results = pd.DataFrame(results)
+        assert results.shape[0] == 1, "Results for bar{W} should be length 1"
+        return results[columns]
 
     def assess_model_on_test_data(self):
         """
@@ -663,7 +693,7 @@ class LeastSquaresSGD(ClassificationBase):
         x = 'epoch'
         y1 = '\bar{W} variance % change'
         self.plot_ys(df=self.W_bar_variance_df, x=x, y1=y1, y2=None,
-                     ylabel= "\bar{W} variance % change",
+                     ylabel= "bar{W} variance % change",
                      y0_line=True, logx=False, logy=False,
                      colors=None, figsize=(4, 3))
 
