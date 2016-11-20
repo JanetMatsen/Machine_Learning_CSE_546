@@ -216,7 +216,8 @@ class HyperparameterExplorer:
         print("getting best model.")
         # Reset model, but not the initial weights
         self.final_model = self.best('model').copy()
-        self.final_model.assess_test_data_during_fitting = self.assess_test_data_during_fitting
+        self.final_model.check_W_bar_fit_during_fitting = True
+        self.final_model.assess_test_data_during_fitting =True
 
         # replace the smaller training sets with the whole training set.
         self.final_model.replace_X_and_y(self.all_training_X,

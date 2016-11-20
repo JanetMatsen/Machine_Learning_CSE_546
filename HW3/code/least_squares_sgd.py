@@ -20,15 +20,14 @@ class LeastSquaresSGD(ClassificationBase):
     def __init__(self, X, y, eta0=None, W=None,
                  kernel=Fourier,
                  kernel_kwargs=None,
-                 eta0_search_start=0.1, # gets normalized by N
+                 eta0_search_start=0.1,  # gets normalized by N
                  max_epochs=50,  # of times passing through N pts
                  batch_size=10,
                  progress_monitoring_freq=15000,
                  delta_percent=0.01, verbose=False,
-                 check_W_bar_vitals=True,
+                 check_W_bar_fit_during_fitting=False,
                  test_X=None, test_y=None,
-                 assess_test_data_during_fitting=True):
-
+                 assess_test_data_during_fitting=False):
         # check data
         assert X.shape[0] == y.shape[0]
         # Sometimes we check the loss of test_X and test_y during fitting
@@ -76,9 +75,9 @@ class LeastSquaresSGD(ClassificationBase):
         self.last_n_weights = []
         self.W_bar_variance_df = pd.DataFrame()
         self.W_bar = None
-        if check_W_bar_vitals:
+        if check_W_bar_fit_during_fitting:
             print("Checking bar{W} as we go.  Adds expense!")
-            self.check_W_bar_vitals = check_W_bar_vitals
+        self.check_W_bar_fit_during_fitting = check_W_bar_fit_during_fitting
 
         self.eta0_search_start = eta0_search_start
         if eta0 is None:
@@ -140,7 +139,7 @@ class LeastSquaresSGD(ClassificationBase):
         y = self.y[random_indices]
         model = self.copy()
         model.assess_test_data_during_fitting = False
-        model.check_W_bar_vitals = False
+        model.check_W_bar_fit_during_fitting = False
         model.replace_X_and_y(X, y)
 
         # passed will become False once the learning rate is cranked up
@@ -241,8 +240,6 @@ class LeastSquaresSGD(ClassificationBase):
         def build_up_Yhat(X_chunk, Yhat, weights):
             assert weights is not None
             Yhat_chunk = X_chunk.dot(weights)
-            if Yhat_chunk.shape != (X_chunk.shape[0], self.C):
-                import pdb; pdb.set_trace()
             assert Yhat_chunk.shape == (X_chunk.shape[0], self.C)
             if Yhat is None:
                 Yhat = Yhat_chunk
@@ -320,16 +317,11 @@ class LeastSquaresSGD(ClassificationBase):
         Expensive!  Computes stuff for the (Nxd) X matrix.
         """
         # append on logistic regression-specific results
-        if len(self.last_n_weights) >= 1 and self.check_W_bar_vitals:
+        if len(self.last_n_weights) >= 1 and self.check_W_bar_fit_during_fitting:
             calc_for_W_bar = True
         else:
             # can't calculate anything before the weights have been set once.
             calc_for_W_bar = False
-
-        if self.W is None:
-            calc_Yhat = False
-        else:
-            calc_Yhat = True
 
         self.Yhat, self.Yhat_Wbar = \
             self.calc_Yhat(calc_for_W_bar = calc_for_W_bar)
@@ -438,14 +430,15 @@ class LeastSquaresSGD(ClassificationBase):
                 # or the first pass of a re-run
                 if last_pass or (rerun and iter==1):
                     # update the average of recent weight vectors
+                    self.update_W_bar(self.W)
                     W_bar_variance, W_bar_percent_improvement = \
-                        self.W_bar_vitals(old_W_bar_variance)
+                        self.check_W_bar_fit(old_W_bar_variance)
 
                 # take the more expensive pulse, using Yhat, which
                 # requires kernel transformatin of all of X.
                 if take_pulse:
                     start_time = datetime.datetime.now()
-                    self.record_vitals(W_bar_available=W_bar_available)
+                    self.record_fit(W_bar_available=W_bar_available)
                     if self.verbose:
                         stop_time = datetime.datetime.now()
                         print("Vitals done: {}.".format(
@@ -532,7 +525,7 @@ class LeastSquaresSGD(ClassificationBase):
         assert len(self.last_n_weights) > 0, "Need weights to calc weight var"
         return np.var(self.calc_W_bar())
 
-    def W_bar_vitals(self, old_W_bar_variance):
+    def check_W_bar_fit(self, old_W_bar_variance):
         self.update_W_bar(self.W, n=5)
         new_W_bar_variance = self.W_bar_variance()
 
@@ -549,33 +542,29 @@ class LeastSquaresSGD(ClassificationBase):
 
         return new_W_bar_variance, W_bar_percent_improvement
 
-    def record_vitals(self, W_bar_available):
+    def record_fit(self, W_bar_available):
         row_results = pd.DataFrame(self.results_row())
-        if row_results.shape[0] != 1:
-            import pdb; pdb.set_trace()
         assert row_results.shape[0] == 1, "row_results should have 1 row"
 
-        if self.check_W_bar_vitals and W_bar_available:
-            W_bar_results = self.assess_model_using_W_bar()
-            if W_bar_results.shape[0] != 1:
-                import pdb; pdb.set_trace()
+        if self.check_W_bar_fit_during_fitting and W_bar_available:
+            W_bar_results = self.record_fit_using_W_bar()
             assert W_bar_results.shape[0] == 1, \
                 "\bar{W} results should have 1 row"
+            merged_results = pd.merge(row_results, W_bar_results)
+            assert merged_results.shape[0] == 1
 
         # also find the square loss & 0/1 loss using test data.
         if self.assess_test_data_during_fitting:
             assert (self.test_X is not None) and (self.test_y is not None), \
                 "Asked for test results but no test data was provided."
-            test_results = self.assess_model_on_test_data()
+            test_results = self.record_fit_on_test_data()
             merged_results = pd.merge(row_results, test_results)
             assert merged_results.shape[0] == 1
-            if merged_results.shape[0] != 1:
-                import pdb; pdb.set_trace()
             row_results = merged_results # merge worked
 
         self.results = pd.concat([self.results, row_results], axis=0)
 
-    def assess_model_using_W_bar(self):
+    def record_fit_using_W_bar(self):
         """
         Note: this has nothing to do with model fitting.
         It is only for reporting and gaining intuition.
@@ -589,15 +578,20 @@ class LeastSquaresSGD(ClassificationBase):
 
         # Get the results, the usual way:
         all_W_bar_results = model.results_row()
+        results = {re.sub("training", "training (bar{W})", k): v
+                   for k, v in all_W_bar_results.items()}
         results = {re.sub("training", "bar{W}", k): v
-           for k, v in all_W_bar_results.items()}
+           for k, v in results.items()}
+
         # don't need step if merging on.
         columns = [c for c in results.keys() if 'bar{W}' in c]
-        results = pd.DataFrame(results)
-        assert results.shape[0] == 1, "Results for bar{W} should be length 1"
-        return results[columns]
+        columns.append('step')
+        results_selected = results[columns]
+        results_df = pd.DataFrame(results_selected)
+        assert results_df.shape[0] == 1, "Results for bar{W} should be length 1"
+        return results_df
 
-    def assess_model_on_test_data(self):
+    def record_fit_on_test_data(self):
         """
         Note: this has nothing to do with model fitting.
         It is only for reporting and gaining intuition.
