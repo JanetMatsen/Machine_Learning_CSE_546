@@ -704,7 +704,21 @@ class LeastSquaresSGD(ClassificationBase):
         You shave both the training and test losses on the same plot
         (so there should be four curves)
         """
-        pass
+        fig, ax = plt.subplots(1, 1, figsize=(4,3))
+        #colors = ['#9ecae1', '#3182bd', '#a1d99b', '#31a354']
+        colors = ['#6baed6', '#08519c', '#74c476', '#006d2c']
+        y_vars = ['(square loss)/N, training', '(square loss)/N, training (bar{W})',
+           '(square loss)/N, testing', '(square loss)/N, testing (bar{W})']
+        x = self.results['epoch']
+        for y, c in zip(y_vars, colors):
+            plt.plot(x, self.results[y], linestyle='--', marker='o', color=c)
+            #self.results.plot(kind='scatter', x='epoch', y=y, color=c, ax=ax)
+            plt.legend(loc = 'best')
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.xlabel("epoch")
+        plt.ylabel("square loss, normalized")
+        plt.tight_layout()
+        return plt
 
     @staticmethod
     def datetime():
