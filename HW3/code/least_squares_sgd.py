@@ -431,7 +431,8 @@ class LeastSquaresSGD(ClassificationBase):
                 # requires kernel transformatin of all of X.
                 if take_pulse:
                     start_time = datetime.datetime.now()
-                    self.record_fit()
+                    self.results = pd.concat([self.results, self.observe_fit()], axis=0)
+
                     if self.verbose:
                         stop_time = datetime.datetime.now()
                         print("Vitals done: {}.".format(
@@ -535,12 +536,12 @@ class LeastSquaresSGD(ClassificationBase):
 
         return new_W_bar_variance, W_bar_percent_improvement
 
-    def record_fit(self):
+    def observe_fit(self):
         row_results = pd.DataFrame(self.results_row())
         assert row_results.shape[0] == 1, "row_results should have 1 row"
 
         if self.check_W_bar_fit_during_fitting:
-            W_bar_results = self.record_fit_using_W_bar()
+            W_bar_results = self.observe_fit_using_W_bar()
             assert W_bar_results.shape[0] == 1, \
                 "\bar{W} results should have 1 row"
             merged_results = pd.merge(row_results, W_bar_results)
@@ -550,14 +551,15 @@ class LeastSquaresSGD(ClassificationBase):
         if self.assess_test_data_during_fitting:
             assert (self.test_X is not None) and (self.test_y is not None), \
                 "Asked for test results but no test data was provided."
-            test_results = self.record_fit_on_test_data()
+            test_results = self.observe_fit_on_test_data()
             merged_results = pd.merge(merged_results, test_results)
             assert merged_results.shape[0] == 1
             row_results = merged_results # merge worked
 
-        self.results = pd.concat([self.results, row_results], axis=0)
+        return row_results
+        #self.results = pd.concat([self.results, row_results], axis=0)
 
-    def record_fit_using_W_bar(self):
+    def observe_fit_using_W_bar(self):
         """
         Note: this has nothing to do with model fitting.
         It is only for reporting and gaining intuition.
@@ -581,17 +583,30 @@ class LeastSquaresSGD(ClassificationBase):
         assert results_df.shape[0] == 1, "Results for bar{W} should be length 1"
         return results_df
 
-    def record_fit_on_test_data(self):
+    def observe_fit_on_test_data(self):
         """
         Note: this has nothing to do with model fitting.
         It is only for reporting and gaining intuition.
         """
-        test_results = pd.DataFrame(
-            self.apply_model(X=self.test_X, y=self.test_y,
-                             data_name = 'testing'))
-        t_columns = [c for c in test_results.columns
-                     if 'test' in c or 'step' == c]
-        return pd.DataFrame(test_results[t_columns])
+        new_model = self.copy(reset=False)
+        new_model.replace_X_and_y(self.test_X, self.test_y)
+        # Get the results, the usual way:
+        all_W_bar_results = new_model.results_row()
+        results = {re.sub("training", "testing", k): v
+                   for k, v in all_W_bar_results.items()}
+
+        W_bar_results = new_model.observe_fit_using_W_bar()
+        # already pluggs in the extra bar{W} string
+        W_bar_results = {re.sub("training", "testing", k): v
+                   for k, v in W_bar_results.items()}
+        results.update(W_bar_results)
+
+        # don't need step if merging on.
+        columns = [c for c in results.keys() if 'test' in c]
+        columns.append('step')
+        results_df = pd.DataFrame(results)[columns]
+        assert results_df.shape[0] == 1, "Results for bar{W} should be length 1"
+        return results_df
 
     def test_convergence(self, square_loss_percent_improvement,
                          W_bar_percent_improvement):

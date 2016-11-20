@@ -136,7 +136,7 @@ class ClassificationBase:
         elif "w" in self.__dict__.keys():
             self.w = new_weights
 
-    def apply_model(self, X, y, data_name):
+    def apply_model(self, X, y, data_name, calc_for_W_bar=True):
         """
         Apply existing weights (for "base_model") to give predictions
         on different X data.
