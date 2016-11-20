@@ -207,7 +207,7 @@ class HyperparameterExplorer:
         if filename is not None:
             fig.savefig(filename + '.pdf')
 
-    def train_on_whole_training_set(self, max_steps=None, delta_percent=None):
+    def train_on_whole_training_set(self, max_epochs=None, delta_percent=None):
         # get the best model conditions from the hyperparameter exploration,
         # and print it to ensure the user's hyperparameters match the best
         # models's.:
@@ -215,15 +215,15 @@ class HyperparameterExplorer:
         #print(self.best('summary'))
         print("getting best model.")
         # Reset model, but not the initial weights
-        self.final_model = self.best('model').copy()
+        self.final_model = self.best('model').copy(reset=True)
         self.final_model.check_W_bar_fit_during_fitting = True
         self.final_model.assess_test_data_during_fitting =True
 
         # replace the smaller training sets with the whole training set.
         self.final_model.replace_X_and_y(self.all_training_X,
                                          self.all_training_y)
-        if max_steps is not None:
-            self.final_model.max_steps = max_steps
+        if max_epochs is not None:
+            self.final_model.max_epochs = max_epochs
         if delta_percent is not None:
             self.delta_percent = delta_percent
 

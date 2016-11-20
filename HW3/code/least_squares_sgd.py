@@ -28,6 +28,7 @@ class LeastSquaresSGD(ClassificationBase):
                  check_W_bar_fit_during_fitting=False,
                  test_X=None, test_y=None,
                  assess_test_data_during_fitting=False):
+
         # check data
         assert X.shape[0] == y.shape[0]
         # Sometimes we check the loss of test_X and test_y during fitting
@@ -72,7 +73,7 @@ class LeastSquaresSGD(ClassificationBase):
         self.converged = False # Set True if converges.
 
         # keep track of last n sets of weights to compute \bar(w)
-        self.last_n_weights = []
+        self.last_n_weights = [self.W.copy()] # should be None
         self.W_bar_variance_df = pd.DataFrame()
         self.W_bar = None
         if check_W_bar_fit_during_fitting:
@@ -109,7 +110,7 @@ class LeastSquaresSGD(ClassificationBase):
             self.eta0_search_start = self.eta0
             self.eta = self.eta0
         self.eta0_search_calls = 0
-        self.last_n_weights = [] # erase old weights
+        self.last_n_weights = [self.W.copy()] # erase old weights
         self.W_bar = None
         self.results = None
 
@@ -363,8 +364,6 @@ class LeastSquaresSGD(ClassificationBase):
         It is built from a tuple of previous weights, stored in
         self.last_n_weights.
         """
-        # Variance of new weights minus the recent average:
-
         if len(self.last_n_weights) >= n:
             self.last_n_weights.pop(0)
         self.last_n_weights.append(weight_array)
@@ -378,10 +377,10 @@ class LeastSquaresSGD(ClassificationBase):
                 self.results.tail(1).reset_index()['(square loss)/N, training'][0]
             print("Before re-run, epochs = {}, steps = {}".format(
                 self.epochs, self.steps))
-        if len(self.last_n_weights) == 0:
-            W_bar_available = False
-        elif len(self.last_n_weights) >= 1:
-            W_bar_available = True
+
+        # initialize the statistic for tracking variance
+        # Should be zero if weights are initially zero.
+        old_W_bar_variance = self.W_bar_variance()
 
 
         # Step until converged
@@ -392,17 +391,11 @@ class LeastSquaresSGD(ClassificationBase):
             # Shuffle each time we loop through the entire data set.
             X, Y = self.shuffle(self.X.copy(), self.Y.copy())
 
-            # initialize the statistic for tracking variance
-            # Should be zero if weights are initially zero.
-            if W_bar_available:
-                old_W_bar_variance = self.W_bar_variance()
-            else:
-                old_W_bar_variance = 0
-
             # loop over ~all of the data points in little batches.
             num_pts = 0
             iter = 0
             while num_pts < self.N :
+
                 iter += 1
                 if self.points_sampled%self.progress_monitoring_freq == 0:
                     take_pulse = True
@@ -438,7 +431,7 @@ class LeastSquaresSGD(ClassificationBase):
                 # requires kernel transformatin of all of X.
                 if take_pulse:
                     start_time = datetime.datetime.now()
-                    self.record_fit(W_bar_available=W_bar_available)
+                    self.record_fit()
                     if self.verbose:
                         stop_time = datetime.datetime.now()
                         print("Vitals done: {}.".format(
@@ -542,11 +535,11 @@ class LeastSquaresSGD(ClassificationBase):
 
         return new_W_bar_variance, W_bar_percent_improvement
 
-    def record_fit(self, W_bar_available):
+    def record_fit(self):
         row_results = pd.DataFrame(self.results_row())
         assert row_results.shape[0] == 1, "row_results should have 1 row"
 
-        if self.check_W_bar_fit_during_fitting and W_bar_available:
+        if self.check_W_bar_fit_during_fitting:
             W_bar_results = self.record_fit_using_W_bar()
             assert W_bar_results.shape[0] == 1, \
                 "\bar{W} results should have 1 row"
@@ -558,7 +551,7 @@ class LeastSquaresSGD(ClassificationBase):
             assert (self.test_X is not None) and (self.test_y is not None), \
                 "Asked for test results but no test data was provided."
             test_results = self.record_fit_on_test_data()
-            merged_results = pd.merge(row_results, test_results)
+            merged_results = pd.merge(merged_results, test_results)
             assert merged_results.shape[0] == 1
             row_results = merged_results # merge worked
 
@@ -580,14 +573,11 @@ class LeastSquaresSGD(ClassificationBase):
         all_W_bar_results = model.results_row()
         results = {re.sub("training", "training (bar{W})", k): v
                    for k, v in all_W_bar_results.items()}
-        results = {re.sub("training", "bar{W}", k): v
-           for k, v in results.items()}
 
         # don't need step if merging on.
         columns = [c for c in results.keys() if 'bar{W}' in c]
         columns.append('step')
-        results_selected = results[columns]
-        results_df = pd.DataFrame(results_selected)
+        results_df = pd.DataFrame(results)[columns]
         assert results_df.shape[0] == 1, "Results for bar{W} should be length 1"
         return results_df
 
