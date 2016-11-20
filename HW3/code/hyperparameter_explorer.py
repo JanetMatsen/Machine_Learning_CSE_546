@@ -122,7 +122,7 @@ class HyperparameterExplorer:
         # Plot log loss vs time if applicable.
         try:
             m.plot_loss_normalized_and_eta()
-            m.plot_w_hat_history()
+            m.plot_W_hat_history()
         except:
             print("not all plotting calls worked.")
 

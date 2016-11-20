@@ -3,11 +3,12 @@ import datetime
 import numpy as np
 import sys
 import pandas as pd
+import re
 
 import matplotlib.pyplot as plt
 
 from classification_base import ClassificationBase
-from classification_base import ModelFitExcpetion
+from classification_base import ModelFitException
 from kernel import RBFKernel, Fourier
 
 
@@ -71,10 +72,10 @@ class LeastSquaresSGD(ClassificationBase):
         self.points_sampled = 0
         self.converged = False # Set True if converges.
 
-        # keep track of last n sets of weights to compute \hat(w)
+        # keep track of last n sets of weights to compute \bar(w)
         self.last_n_weights = []
-        self.W_hat_variance_df = pd.DataFrame()
-        self.W_hat = None
+        self.W_bar_variance_df = pd.DataFrame()
+        self.W_bar = None
         if check_W_bar_vitals:
             print("Checking bar{W} as we go.  Adds expense!")
             self.check_W_bar_vitals = check_W_bar_vitals
@@ -86,7 +87,7 @@ class LeastSquaresSGD(ClassificationBase):
         else:
             self.eta0 = eta0
         self.eta = self.eta0
-        # \hat{Y} is expensive to calc, so share it across functions
+        # \bar{Y} is expensive to calc, so share it across functions
         self.Yhat = None
 
     def copy(self, reset=True):
@@ -101,7 +102,7 @@ class LeastSquaresSGD(ClassificationBase):
         self.points_sampled = 0
         self.converged = False
         self.diverged = False
-        self.W_hat_variance_df = pd.DataFrame()
+        self.W_bar_variance_df = pd.DataFrame()
         self.steps = 0
         self.points = 0
         # for eta0 search resets, we don't start with an eta0.
@@ -110,7 +111,7 @@ class LeastSquaresSGD(ClassificationBase):
             self.eta = self.eta0
         self.eta0_search_calls = 0
         self.last_n_weights = [] # erase old weights
-        self.W_hat = None
+        self.W_bar = None
         self.results = None
 
     def find_good_learning_rate(self, max_divergence_streak_length=3,
@@ -139,6 +140,7 @@ class LeastSquaresSGD(ClassificationBase):
         y = self.y[random_indices]
         model = self.copy()
         model.assess_test_data_during_fitting = False
+        model.check_W_bar_vitals = False
         model.replace_X_and_y(X, y)
 
         # passed will become False once the learning rate is cranked up
@@ -167,7 +169,8 @@ class LeastSquaresSGD(ClassificationBase):
                                 model.epochs == model.max_epochs:
                     passed = False
                 # If that passed without exception, passed = True
-            except:
+            except ModelFitException as e:
+
                 print("Model training raised an exception.")
                 passed = False
         assert rates_tried >= 1, "\n eta0 didn't change; start lower"
@@ -177,7 +180,7 @@ class LeastSquaresSGD(ClassificationBase):
         if self.eta0_search_calls == max_rates:
             print("search for eat0 tried {} values and failed to converge."
                   "".format(max_rates))
-            raise ModelFitExcpetion("eta0 search failed")
+            raise ModelFitException("eta0 search failed")
 
         if rates_tried == 1:
             print("--- eta0 didn't change; start 100x lower --- \n")
@@ -192,7 +195,7 @@ class LeastSquaresSGD(ClassificationBase):
 
     def apply_weights(self, X):
         """
-        Calculate the prediction matrix: Y_hat = XW.  No bias.
+        Calculate the prediction matrix: Y_bar = XW.  No bias.
         """
         return X.dot(self.get_weights())
 
@@ -224,26 +227,43 @@ class LeastSquaresSGD(ClassificationBase):
         been transformed by the kernel.
         """
         X = self.X
+        calc_for_W_bar = self.check_W_bar_vitals
 
         if X.shape[0] < chunk_size:
             chunk_size = X.shape[0]
         N = X.shape[0]
         n = 0
+        if calc_for_W_bar:
+            Wbar = self.calc_W_bar()
 
         # for each chunk of X, transform to kernel and find Yhat.
         while n < N:
+            # Find kernel-version of a chunk of X
             X_chunk = X[n: n+chunk_size, ]
             kernel_chunk = self.kernel.transform(X_chunk)
             assert kernel_chunk.shape == (X_chunk.shape[0], self.kernel.d)
+
             Yhat_chunk = kernel_chunk.dot(self.W)
+            if calc_for_W_bar:
+                Yhat_Wbar_chunk = kernel_chunk.dot(Wbar)
+
             if n == 0: # first pass through
                 Yhat = Yhat_chunk
+                if calc_for_W_bar:
+                    Yhat_Wbar = Yhat_Wbar_chunk
             else:
                 Yhat = np.vstack((Yhat, Yhat_chunk))
+                if calc_for_W_bar:
+                    Yhat_Wbar = np.vstack([Yhat_Wbar, Yhat_Wbar_chunk])
+
             n += X_chunk.shape[0]
 
         assert Yhat.shape == (N, self.C)
-        return Yhat
+        if calc_for_W_bar:
+            assert Yhat_Wbar.shape == (N, self.C)
+            return Yhat, Yhat_Wbar
+        else:
+            return Yhat
 
     def predict(self):
         """
@@ -260,13 +280,15 @@ class LeastSquaresSGD(ClassificationBase):
         assert self.Yhat is not None, \
             "Compute Yhat before calling predict, but don't compute too often!"
         Yhat = self.Yhat
+
         errors = self.Y - Yhat
-        # TODO: print a warning if the sum of the errors is large
         avg_err = np.sum(np.absolute(errors))/self.N/self.C
+
         if self.verbose:
             print("average error: {}.  (step = {})".format(avg_err, self.steps))
         if avg_err > 5:
             print("The sum of errors is concerningly big: {}".format(avg_err))
+
         # element-wise squaring:
         errors_squared = np.multiply(errors, errors)
         return errors_squared.sum()
@@ -289,7 +311,10 @@ class LeastSquaresSGD(ClassificationBase):
         Expensive!  Computes stuff for the (Nxd) X matrix.
         """
         # append on logistic regression-specific results
-        self.Yhat = self.calc_Yhat()
+        if self.check_W_bar_vitals:
+            self.Yhat, self.Yhat_Wbar = self.calc_Yhat()
+        else:
+            self.Yhat = self.calc_Yhat()
 
         # call parent class for universal metrics
         row = super(LeastSquaresSGD, self).results_row()
@@ -312,16 +337,16 @@ class LeastSquaresSGD(ClassificationBase):
         self.Yhat = None  # wipe it so it can't be used incorrectly later
         return row
 
-    def calc_w_hat(self):
+    def calc_W_bar(self):
         """
-        \hat{w} is the average weights over the last n fittings
+        \bar{W} is the average weights over the last n fittings
         """
         return np.array(self.last_n_weights).sum(axis=0)/\
                len(self.last_n_weights)
 
-    def update_w_hat(self, weight_array, n=50):
+    def update_W_bar(self, weight_array, n=5):
         """
-        \hat{w} is the average weights over the last n fittings
+        \bar{W} is the average weights over the last n fittings
 
         It is built from a tuple of previous weights, stored in
         self.last_n_weights.
@@ -331,7 +356,7 @@ class LeastSquaresSGD(ClassificationBase):
         if len(self.last_n_weights) >= n:
             self.last_n_weights.pop(0)
         self.last_n_weights.append(weight_array)
-        self.W_hat = self.calc_w_hat()
+        self.W_bar = self.calc_W_bar()
 
     def run(self, max_divergence_streak_length=7, rerun=False):
 
@@ -352,7 +377,7 @@ class LeastSquaresSGD(ClassificationBase):
 
             # initialize the statistic for tracking variance
             # Should be zero if weights are initially zero.
-            old_w_hat_variance = self.w_hat_variance()
+            old_W_bar_variance = self.W_bar_variance()
 
             # loop over ~all of the data points in little batches.
             num_pts = 0
@@ -381,12 +406,12 @@ class LeastSquaresSGD(ClassificationBase):
                 last_pass = num_pts == self.N # True if last loop in epoch
                 self.points_sampled += X_sample.shape[0]  # every point ever
 
-                # assess \hat{w} every N points
+                # assess \bar{W} every N points
                 # or the first pass of a re-run
                 if last_pass or (rerun and iter==1):
                     # update the average of recent weight vectors
-                    w_hat_variance, w_hat_percent_improvement = \
-                        self.w_hat_vitals(old_w_hat_variance)
+                    W_bar_variance, W_bar_percent_improvement = \
+                        self.W_bar_vitals(old_W_bar_variance)
 
                 # take the more expensive pulse, using Yhat, which
                 # requires kernel transformatin of all of X.
@@ -406,7 +431,7 @@ class LeastSquaresSGD(ClassificationBase):
                     if square_loss_norm/self.N > 1e3:
                         s = "square loss/N/N grew to {}".format(
                             square_loss_norm/self.N)
-                        raise ModelFitExcpetion(s)
+                        raise ModelFitException(s)
 
                 if take_pulse and self.epochs > 1:
                     square_loss_percent_improvement = self.percent_change(
@@ -414,14 +439,14 @@ class LeastSquaresSGD(ClassificationBase):
                     if self.verbose:
                         print(square_loss_norm)
                     if self.test_convergence(square_loss_percent_improvement,
-                                             w_hat_percent_improvement):
+                                             W_bar_percent_improvement):
                         print("Loss optimized.  Old/N: {}, new/N:{}. Eta: {}"
                               "".format(old_square_loss_norm, square_loss_norm,
                                         self.eta))
                         self.converged = True
                         break
                     elif self.test_divergence(n=max_divergence_streak_length):
-                        raise ModelFitExcpetion(
+                        raise ModelFitException(
                             "\nSquare loss grew {} measurements in a row!"
                             "".format(max_divergence_streak_length))
 
@@ -429,7 +454,7 @@ class LeastSquaresSGD(ClassificationBase):
 
                 if last_pass:
                     # record variables for next loop
-                    old_w_hat_variance = w_hat_variance
+                    old_W_bar_variance = W_bar_variance
 
             self.epochs +=1
             sys.stdout.write(".") # one dot per pass through ~ N pts
@@ -475,29 +500,38 @@ class LeastSquaresSGD(ClassificationBase):
         else:
             self.run(rerun=True)
 
-    def w_hat_variance(self):
-        return np.var(self.calc_w_hat())
+    def W_bar_variance(self):
+        return np.var(self.calc_W_bar())
 
-    def w_hat_vitals(self, old_w_hat_variance):
-        self.update_w_hat(self.W, n=5)
-        new_w_hat_variance = self.w_hat_variance()
+    def W_bar_vitals(self, old_W_bar_variance):
+        self.update_W_bar(self.W, n=5)
+        new_W_bar_variance = self.W_bar_variance()
 
-        w_hat_percent_improvement = self.percent_change(
-            new=new_w_hat_variance, old=old_w_hat_variance)
+        W_bar_percent_improvement = self.percent_change(
+            new=new_W_bar_variance, old=old_W_bar_variance)
 
         # record the improvement:
-        w_hat_improvement = pd.DataFrame(
+        W_bar_improvement = pd.DataFrame(
             {'epoch':[self.epochs],
-             '\hat{w} variance % change': [w_hat_percent_improvement]})
+             '\bar{W} variance % change': [W_bar_percent_improvement]})
         # record it in our tracker.
-        self.W_hat_variance_df = pd.concat([self.W_hat_variance_df,
-                                            w_hat_improvement], axis=0)
+        self.W_bar_variance_df = pd.concat([self.W_bar_variance_df,
+                                            W_bar_improvement], axis=0)
 
-        return new_w_hat_variance, w_hat_percent_improvement
+        return new_W_bar_variance, W_bar_percent_improvement
 
     def record_vitals(self):
         row_results = pd.DataFrame(self.results_row())
+        if row_results.shape[0] != 1:
+            import pdb; pdb.set_trace()
         assert row_results.shape[0] == 1, "row_results should have 1 row"
+
+        if self.check_W_bar_vitals:
+            W_bar_results = self.assess_model_using_W_bar()
+            if W_bar_results.shape[0] != 1:
+                import pdb; pdb.set_trace()
+            assert W_bar_results.shape[0] == 1, \
+                "\bar{W} results should have 1 row"
 
         # also find the square loss & 0/1 loss using test data.
         if self.assess_test_data_during_fitting:
@@ -506,9 +540,32 @@ class LeastSquaresSGD(ClassificationBase):
             test_results = self.assess_model_on_test_data()
             merged_results = pd.merge(row_results, test_results)
             assert merged_results.shape[0] == 1
+            if merged_results.shape[0] != 1:
+                import pdb; pdb.set_trace()
             row_results = merged_results # merge worked
 
         self.results = pd.concat([self.results, row_results], axis=0)
+
+    def assess_model_using_W_bar(self):
+        """
+        Note: this has nothing to do with model fitting.
+        It is only for reporting and gaining intuition.
+        """
+
+        # Make a copy of the model and replace the weights with the W_bar
+        # weights
+        model = self.copy(reset=False)
+        model.W = self.calc_W_bar()
+
+        # Get the results, the usual way:
+        all_W_bar_results = model.resuls_row()
+        results = {re.sub("training", "bar{W}", k): v
+           for k, v in all_W_bar_results.items()}
+        # don't need step if merging on.
+        columns = [c for c in all_W_bar_results.keys if 'bar{W}']
+        W_bar_results = all_W_bar_results[columns]
+
+        return pd.DataFrame(columns[W_bar_results])
 
     def assess_model_on_test_data(self):
         """
@@ -523,9 +580,9 @@ class LeastSquaresSGD(ClassificationBase):
         return pd.DataFrame(test_results[t_columns])
 
     def test_convergence(self, square_loss_percent_improvement,
-                         w_hat_percent_improvement):
+                         W_bar_percent_improvement):
         if self.percent_metrics_converged(square_loss_percent_improvement,
-                                          w_hat_percent_improvement):
+                                          W_bar_percent_improvement):
             # record convergence status
             self.converged = True # flag that it converged.
 
@@ -602,13 +659,23 @@ class LeastSquaresSGD(ClassificationBase):
         if filename is not None:
             fig.savefig(filename + '.pdf')
 
-    def plot_w_hat_history(self):
+    def plot_W_bar_history(self):
         x = 'epoch'
-        y1 = '\hat{w} variance % change'
-        self.plot_ys(df=self.W_hat_variance_df, x=x, y1=y1, y2=None,
-                     ylabel= "\hat{w} variance % change",
+        y1 = '\bar{W} variance % change'
+        self.plot_ys(df=self.W_bar_variance_df, x=x, y1=y1, y2=None,
+                     ylabel= "\bar{W} variance % change",
                      y0_line=True, logx=False, logy=False,
                      colors=None, figsize=(4, 3))
+
+    def plot_loss_of_both_W_arrays(self):
+        """
+        One plot showing the both the squared loss after every epoch
+
+        Plot the loss of both wt and the average weight vector wτ .
+        You shave both the training and test losses on the same plot
+        (so there should be four curves)
+        """
+        pass
 
     @staticmethod
     def datetime():

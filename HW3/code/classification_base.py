@@ -281,6 +281,7 @@ class ClassificationBase:
 
 
 
-class ModelFitExcpetion(Exception):
+class ModelFitException(Exception):
     def __init__(self, message):
+        #self.message = message
         print(message)
