@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.spatial.distance import cdist
+from statistics import mode
+from collections import Counter
 
 class KMeans:
     def __init__(self, k, train_X, train_y, eigenvectors=None,
@@ -7,6 +9,8 @@ class KMeans:
                  test_X=None, test_y=None):
         self.k = k
         self.X = train_X
+        self.N, self.d = train_X.shape
+        self.C = len(set(train_y)) # number of classes based on y
         self.y = train_y
         self.test_X = test_X
         self.test_y = test_y
@@ -57,10 +61,10 @@ class KMeans:
             old_assignments = self.assignments.copy()
 
             # Update
-            self.assign_points()
+            self.recenter_each_center()
             # After re-centering the cluster centers, re-assign the points to
             # the nearest center.
-            self.recenter_each_center()
+            self.assign_points()
 
             # Test for convergence
             centers_converged = self.test_convergence_of_arrays(
@@ -72,20 +76,53 @@ class KMeans:
                       "iterations.".format(self.num_iter))
                 self.converged = True
 
+        self.set_centers_classes()
+        self.classify()
+
     def test_convergence_of_arrays(self, before, after):
         # Start by testing for identity.  Later can downgrade to small percent difference.
         if np.sum(np.abs(before - after)) < 0.001:
             return True
 
-    def majority_label_for_each_center(self):
+    def set_centers_classes(self):
         """
         Find the center of the points assigned to this cluster
         """
-        pass
+        cluster_labels = []
+        for c in range(self.k):
+            labels = self.y[self.assignments == c]
+            majority_label = mode(labels)
+            counts = Counter(labels)
+            print("majority label for center {}, with {} points: {}.  Counts "
+                  "of each item: {}".format(c, len(labels), majority_label, counts))
+            cluster_labels.append(majority_label)
+
+        self.cluster_labels = cluster_labels
 
     def classify(self):
-        # find label for each center, and classify all points.
-        pass
+        """
+        """
+        classes = []
+        for i in range(self.X.shape[0]):
+            cluster = self.assignments[i]
+            label = self.cluster_labels[cluster]
+            classes.append(label)
+
+        self.classifications = classes
+
+    def loss_01(self):
+
+        #if set == "train":
+        #    pass
+        #if set == "test":
+        #    pass
+
+        y = self.y.copy()
+        y = y.reshape(1, self.N)
+        return self.N - np.equal(y, self.classifications).sum()
+
+    def loss_01_normalized(self):
+        return self.loss_01()/self.N
 
     def num_assignments_per_cluster(self):
         pass
@@ -99,12 +136,5 @@ class KMeans:
 
     def visualize_center(self):
         # First transform back into image space.
-        pass
-
-    def loss_01(self, set="train"):
-        if set == "train":
-            pass
-        if set == "test":
-            pass
         pass
 
