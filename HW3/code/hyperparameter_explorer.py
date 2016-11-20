@@ -214,16 +214,16 @@ class HyperparameterExplorer:
         #print("best cross-validation model's info:")
         #print(self.best('summary'))
         print("getting best model.")
+        # Reset model, but not the initial weights
         self.final_model = self.best('model').copy()
         self.final_model.assess_test_data_during_fitting = self.assess_test_data_during_fitting
-        print(self.final_model.results.tail(1))
 
         # replace the smaller training sets with the whole training set.
         self.final_model.replace_X_and_y(self.all_training_X,
                                          self.all_training_y)
-        if max_steps:
+        if max_steps is not None:
             self.final_model.max_steps = max_steps
-        if delta_percent:
+        if delta_percent is not None:
             self.delta_percent = delta_percent
 
         # find the best weights using all the data

@@ -24,7 +24,9 @@ class LeastSquaresSGD(ClassificationBase):
                  batch_size=10,
                  progress_monitoring_freq=15000,
                  delta_percent=0.01, verbose=False,
-                 test_X=None, test_y=None, assess_test_data_during_fitting=True):
+                 check_W_bar_vitals=True,
+                 test_X=None, test_y=None,
+                 assess_test_data_during_fitting=True):
 
         # check data
         assert X.shape[0] == y.shape[0]
@@ -68,10 +70,14 @@ class LeastSquaresSGD(ClassificationBase):
         self.epochs = 1
         self.points_sampled = 0
         self.converged = False # Set True if converges.
+
         # keep track of last n sets of weights to compute \hat(w)
         self.last_n_weights = []
-        self.w_hat_variance_df = pd.DataFrame()
-        self.w_hat = None
+        self.W_hat_variance_df = pd.DataFrame()
+        self.W_hat = None
+        if check_W_bar_vitals:
+            print("Checking bar{W} as we go.  Adds expense!")
+            self.check_W_bar_vitals = check_W_bar_vitals
 
         self.eta0_search_start = eta0_search_start
         if eta0 is None:
@@ -83,20 +89,29 @@ class LeastSquaresSGD(ClassificationBase):
         # \hat{Y} is expensive to calc, so share it across functions
         self.Yhat = None
 
-    def copy(self):
-        model = super(LeastSquaresSGD, self).copy()
-        model.reset_model()
+    def copy(self, reset=True):
+        model = super(LeastSquaresSGD, self).copy(reset=reset)
         return model
 
     def reset_model(self):
+        """
+        Reset everything *except* the weights, and model-fitting to date
+        """
         self.epochs = 1
         self.points_sampled = 0
         self.converged = False
         self.diverged = False
-        self.w_hat_variance_df = pd.DataFrame()
-        self.w_hat = None
+        self.W_hat_variance_df = pd.DataFrame()
         self.steps = 0
+        self.points = 0
+        # for eta0 search resets, we don't start with an eta0.
+        if 'eta0' in self.__dict__.keys():
+            self.eta0_search_start = self.eta0
+            self.eta = self.eta0
         self.eta0_search_calls = 0
+        self.last_n_weights = [] # erase old weights
+        self.W_hat = None
+        self.results = None
 
     def find_good_learning_rate(self, max_divergence_streak_length=3,
                                 max_expochs=5, max_pts = 1000):
@@ -237,6 +252,7 @@ class LeastSquaresSGD(ClassificationBase):
         """
         assert self.Yhat is not None, \
             "Compute Yhat before calling predict, but don't compute too often!"
+
         classes = np.argmax(self.Yhat, axis=1)
         return classes
 
@@ -315,7 +331,7 @@ class LeastSquaresSGD(ClassificationBase):
         if len(self.last_n_weights) >= n:
             self.last_n_weights.pop(0)
         self.last_n_weights.append(weight_array)
-        self.w_hat = self.calc_w_hat()
+        self.W_hat = self.calc_w_hat()
 
     def run(self, max_divergence_streak_length=7, rerun=False):
 
@@ -384,10 +400,14 @@ class LeastSquaresSGD(ClassificationBase):
 
                     square_loss_norm = \
                         self.results.tail(1).reset_index()['(square loss)/N, training'][0]
+                    assert square_loss_norm is not None, \
+                        "square loss shouldn't be None"
+
                     if square_loss_norm/self.N > 1e3:
                         s = "square loss/N/N grew to {}".format(
                             square_loss_norm/self.N)
                         raise ModelFitExcpetion(s)
+
                 if take_pulse and self.epochs > 1:
                     square_loss_percent_improvement = self.percent_change(
                         new = square_loss_norm, old = old_square_loss_norm)
@@ -470,20 +490,23 @@ class LeastSquaresSGD(ClassificationBase):
             {'epoch':[self.epochs],
              '\hat{w} variance % change': [w_hat_percent_improvement]})
         # record it in our tracker.
-        self.w_hat_variance_df = pd.concat([self.w_hat_variance_df,
+        self.W_hat_variance_df = pd.concat([self.W_hat_variance_df,
                                             w_hat_improvement], axis=0)
 
         return new_w_hat_variance, w_hat_percent_improvement
 
     def record_vitals(self):
         row_results = pd.DataFrame(self.results_row())
+        assert row_results.shape[0] == 1, "row_results should have 1 row"
 
         # also find the square loss & 0/1 loss using test data.
         if self.assess_test_data_during_fitting:
             assert (self.test_X is not None) and (self.test_y is not None), \
                 "Asked for test results but no test data was provided."
             test_results = self.assess_model_on_test_data()
-            row_results = pd.merge(row_results, test_results)
+            merged_results = pd.merge(row_results, test_results)
+            assert merged_results.shape[0] == 1
+            row_results = merged_results # merge worked
 
         self.results = pd.concat([self.results, row_results], axis=0)
 
@@ -582,7 +605,7 @@ class LeastSquaresSGD(ClassificationBase):
     def plot_w_hat_history(self):
         x = 'epoch'
         y1 = '\hat{w} variance % change'
-        self.plot_ys(df=self.w_hat_variance_df, x=x, y1=y1, y2=None,
+        self.plot_ys(df=self.W_hat_variance_df, x=x, y1=y1, y2=None,
                      ylabel= "\hat{w} variance % change",
                      y0_line=True, logx=False, logy=False,
                      colors=None, figsize=(4, 3))

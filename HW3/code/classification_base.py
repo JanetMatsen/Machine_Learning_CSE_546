@@ -56,8 +56,15 @@ class ClassificationBase:
         self.Y = Y
         assert self.Y.shape == (self.N, self.C)
 
-    def copy(self):
-        return copy.copy(self)
+    def copy(self, reset=True):
+        model = copy.copy(self)
+        if reset:
+            model.reset_model()
+        return model
+
+    def reset_model(self):
+        # TODO: move some of the least_squares_sgd stuff here
+        raise NotImplementedError
 
     def get_weights(self):
         return self.W
@@ -134,8 +141,8 @@ class ClassificationBase:
         Apply existing weights (for "base_model") to give predictions
         on different X data.
         """
-        # need a new model to do this.
-        new_model = self.copy()
+        # need a new model to do this.  Don't reset steps, etc.
+        new_model = self.copy(reset=False)
         new_model.replace_X_and_y(X, y)
 
         assert new_model.X.shape == X.shape
