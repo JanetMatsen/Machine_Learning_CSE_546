@@ -247,6 +247,7 @@ class ClassificationBase:
         if title is not None:
             plt.title(title)
         plt.tight_layout()
+        return fig
 
     def plot_loss_and_eta(self, pandas=True, logloss=False):
         if len([s for s in self.results.columns.tolist() if 'log loss' in s]) > 0:
@@ -263,13 +264,11 @@ class ClassificationBase:
             x = 'epoch (fractional)'
         else:
             x = 'step'
-        self.plot_2_subplots(x=x,
-                             y1=loss,
-                             y2='eta',
-                             pandas=pandas)
+        return self.plot_2_subplots(x=x, y1=loss, y2='eta', pandas=pandas)
 
     def plot_log_loss_normalized_and_eta(self, pandas=True):
-        self.plot_loss_and_eta(logloss=True, pandas=pandas)
+        return self.plot_loss_and_eta(logloss=True, pandas=pandas)
+
 
     @staticmethod
     def shuffle(X, y):

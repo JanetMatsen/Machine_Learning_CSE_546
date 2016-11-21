@@ -229,6 +229,12 @@ class HyperparameterExplorer:
 
         # find the best weights using all the data
         self.final_model.run()
+        try:
+            self.final_model.plot_loss_and_eta()
+            self.plot_loss_of_both_W_arrays()
+        except:
+            print("not all the plotting worked for the model run with"
+                  "all of the training data")
 
     def evaluate_test_data(self):
         test_results = self.final_model.apply_model(

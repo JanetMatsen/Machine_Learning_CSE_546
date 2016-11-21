@@ -23,7 +23,7 @@ class LeastSquaresSGD(ClassificationBase):
                  eta0_search_start=0.1,  # gets normalized by N
                  max_epochs=50,  # of times passing through N pts
                  batch_size=10,
-                 progress_monitoring_freq=15000,
+                 progress_monitoring_freq=60000,
                  delta_percent=0.01, verbose=False,
                  check_W_bar_fit_during_fitting=False,
                  test_X=None, test_y=None,
@@ -432,10 +432,9 @@ class LeastSquaresSGD(ClassificationBase):
                 if take_pulse:
                     start_time = datetime.datetime.now()
                     self.results = pd.concat([self.results, self.observe_fit()], axis=0)
-
                     if self.verbose:
                         stop_time = datetime.datetime.now()
-                        print("Vitals done: {}.".format(
+                        print("fit observation done: {}.".format(
                             self.time_delta(start_time, stop_time)))
 
                     square_loss_norm = \
