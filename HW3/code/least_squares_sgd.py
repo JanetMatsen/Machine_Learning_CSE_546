@@ -709,8 +709,10 @@ class LeastSquaresSGD(ClassificationBase):
         y_vars = ['(square loss)/N, training', '(square loss)/N, training (bar{W})',
            '(square loss)/N, testing', '(square loss)/N, testing (bar{W})']
         x = self.results['epoch']
-        for y, c in zip(y_vars, colors):
-            plt.plot(x, self.results[y], linestyle='--', marker='o', color=c)
+        sizes = [10, 5, 10, 5]
+        for y, c, s in zip(y_vars, colors, sizes):
+            plt.plot(x, self.results[y], linestyle='--',
+                     marker='o', markersize=s, color=c, alpha=0.7)
             #self.results.plot(kind='scatter', x='epoch', y=y, color=c, ax=ax)
             plt.legend(loc = 'best')
         ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
