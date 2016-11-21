@@ -109,24 +109,29 @@ class Pca:
     def save_sigma(self, filename):
         np.save(filename + '.npy', self.sigma)
 
-    def transform_number_down(self, xi, num_eigenvectors):
+    def transform_number_down(self, x, num_eigenvectors, center=True):
+        # todo: if centering other points, I need to remove the mean here first.
+        # remove the mean
+        if center:
+            x = x - self.X_center
+        # get the right number of eigenvectors
         W = self.eigenvects[:,0:num_eigenvectors]
-        down = xi.dot(W)
-        assert down.shape == (num_eigenvectors,)
+        down = x.dot(W)
+        assert down.shape == (num_eigenvectors, )
         return down
 
-    def transform_number_up(self, xi):
+    def transform_number_up(self, xi, center=True):
         num_eigenvectors = xi.shape[0]
         W = self.eigenvects[:,0:num_eigenvectors]
         image = xi.dot(W.T)
         # add the center back on
-        if self.center:
+        if center:
             image += self.X_center
         assert image.shape == (784, )
         return image
 
     def find_first(self, number):
-        """ Index of first occurance"""
+        """ Index of first occurrence"""
         vector = self.y
         for i in range(len(vector)):
             if number == vector[i]:
@@ -138,11 +143,11 @@ class Pca:
             indices.append(self.find_first(n))
         return np.array(indices)
 
-    def transform_digit(self, x, n_components, up=True):
-        t = self.transform_number_down(x, n_components)
+    def transform_digit(self, x, n_components, up=True, center=True):
+        t = self.transform_number_down(x, n_components, center=center)
         assert t.shape == (n_components, )
         if up:
-            t = self.transform_number_up(t)
+            t = self.transform_number_up(t, center=center)
             assert t.shape == (784, )
         return t
 
