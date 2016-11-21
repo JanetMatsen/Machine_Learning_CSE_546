@@ -695,7 +695,7 @@ class LeastSquaresSGD(ClassificationBase):
                      y0_line=True, logx=False, logy=False,
                      colors=None, figsize=(4, 3))
 
-    def plot_loss_of_both_W_arrays(self):
+    def plot_loss_of_both_W_arrays(self, loss='square', style='lines'):
         """
         One plot showing the both the squared loss after every epoch
 
@@ -704,20 +704,37 @@ class LeastSquaresSGD(ClassificationBase):
         (so there should be four curves)
         """
         fig, ax = plt.subplots(1, 1, figsize=(4,3))
-        #colors = ['#9ecae1', '#3182bd', '#a1d99b', '#31a354']
-        colors = ['#6baed6', '#08519c', '#74c476', '#006d2c']
-        y_vars = ['(square loss)/N, training', '(square loss)/N, training (bar{W})',
-           '(square loss)/N, testing', '(square loss)/N, testing (bar{W})']
+
+        if loss == 'square':
+            y_vars = ['(square loss)/N, training', '(square loss)/N, training (bar{W})',
+                      '(square loss)/N, testing (bar{W})', '(square loss)/N, testing']
+            ylabel = "square loss, normalized"
+        elif loss == '0/1':
+            y_vars = ['training (0/1 loss)/N', 'training (bar{W}) (0/1 loss)/N',
+                      'testing (0/1 loss)/N', 'testing (bar{W}) (0/1 loss)/N']
+            ylabel = "0/1 loss, normalized"
+        else:
+            print("Doesn't handle plot of tpe {}.  Did you mean 'square' or '0/1'?")
         x = self.results['epoch']
         sizes = [10, 5, 10, 5]
-        for y, c, s in zip(y_vars, colors, sizes):
-            plt.plot(x, self.results[y], linestyle='--',
-                     marker='o', markersize=s, color=c, alpha=0.7)
-            #self.results.plot(kind='scatter', x='epoch', y=y, color=c, ax=ax)
+
+        colors = ['#6baed6', '#08519c', '#74c476', '#006d2c']
+        if style == 'lines':
+            s_vals = ['-', ':', '-', ':']
+        elif style == 'dots':
+            s_vals = [10, 5, 10, 5]
+
+        for y, c, s in zip(y_vars, colors, s_vals):
+            if style == 'lines':
+                plt.plot(x, self.results[y], linestyle=s, color=c)
+            elif style == 'dots':
+                plt.plot(x, self.results[y], linestyle='--',
+                         marker='o', markersize=s, color=c, alpha=0.7)
             plt.legend(loc = 'best')
         ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.xlabel("epoch")
-        plt.ylabel("square loss, normalized")
+
+        plt.ylabel(ylabel)
         plt.tight_layout()
         return plt
 
