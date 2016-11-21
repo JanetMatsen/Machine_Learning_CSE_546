@@ -111,15 +111,19 @@ class Pca:
 
     def transform_number_down(self, xi, num_eigenvectors):
         W = self.eigenvects[:,0:num_eigenvectors]
-        return xi.dot(W)
+        down = xi.dot(W)
+        assert down.shape == (num_eigenvectors,)
+        return down
 
-    def transform_number_up(self, xi, num_eigenvectors):
+    def transform_number_up(self, xi):
+        num_eigenvectors = xi.shape[0]
         W = self.eigenvects[:,0:num_eigenvectors]
-        down = self.transform_number_down(xi, num_eigenvectors)
+        image = xi.dot(W.T)
         # add the center back on
         if self.center:
-            X = self.X + self.X_center
-        return down.dot(W.T)
+            image += self.X_center
+        assert image.shape == (784, )
+        return image
 
     def find_first(self, number):
         """ Index of first occurance"""
@@ -134,12 +138,18 @@ class Pca:
             indices.append(self.find_first(n))
         return np.array(indices)
 
+    def transform_digit(self, x, n_components, up=True):
+        t = self.transform_number_down(x, n_components)
+        assert t.shape == (n_components, )
+        if up:
+            t = self.transform_number_up(t)
+            assert t.shape == (784, )
+        return t
+
     def transform_digits(self, vectors, n_components, up=True):
         for i in range(vectors.shape[0]):
-            if up:
-                t = self.transform_number_up(vectors[i], n_components)
-            else:
-                t = self.transform_number_down(vectors[i], n_components)
+            x = vectors[i]
+            t = self.transform_digit(x, n_components=n_components, up=up)
             if i == 0:
                 transformed = t
             else:
