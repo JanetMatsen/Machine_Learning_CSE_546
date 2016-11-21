@@ -203,7 +203,7 @@ def plot_fractional_reconstruction_error(pca_obj, start=None, stop=None,
 
 def make_image(data, path=None):
     plt.figure(figsize=(1,1))
-    p=plt.imshow(data.reshape(28, 28), origin='upper')
+    p=plt.imshow(data.reshape(28, 28), origin='upper', interpolation='none')
     p.set_cmap('gray_r')
     plt.axis('off')
     if path is not None:
