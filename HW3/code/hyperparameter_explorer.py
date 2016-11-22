@@ -229,14 +229,20 @@ class HyperparameterExplorer:
 
         # find the best weights using all the data
         self.final_model.run()
+        assert self.final_model.W_bar is not None, \
+            "Should have bar{W} for final model, so the test data is " \
+            "assessed using bar{W} instead of W."
         try:
             self.final_model.plot_loss_and_eta()
-            self.plot_loss_of_both_W_arrays()
+            self.final_model.plot_loss_of_both_W_arrays()
         except:
             print("not all the plotting worked for the model run with"
                   "all of the training data")
 
     def evaluate_test_data(self):
+        assert self.final_model.W_bar is not None, \
+            "Should use bar{W} to evaluate test data"
+
         test_results = self.final_model.apply_model(
             X=self.test_X, y=self.test_y, data_name="test")
         print(pd.DataFrame(test_results).T)

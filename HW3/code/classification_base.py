@@ -152,8 +152,13 @@ class ClassificationBase:
         else:
             assert new_model.Y.shape[0] == y.shape[0]
 
-        if use_W_bar:
+        if use_W_bar and self.W_bar is not None:
+            print("Using bar{W} to apply model to new data.")
             self.W = self.W_bar
+        elif self.W_bar is None:
+            print("Using W because bar{W} does not exist.")
+        else:
+            print("???")
 
         # not training the new model this time!
         results = new_model.results_row()
@@ -213,7 +218,7 @@ class ClassificationBase:
 
     def plot_01_loss(self, y="(0/1 loss)/N", ylabel="fractional 0/1 loss",
                      filename=None, logx=False, head_n=None, tail_n=None):
-        fig = self.plot_ys(x='step', y1=y, ylabel=ylabel, logx=logx,
+        fig = self.plot_ys(x='epoch', y1=y, ylabel=ylabel, logx=logx,
                            head_n=head_n, tail_n=tail_n)
         if filename:
             fig.savefig(filename + '.pdf')
@@ -221,7 +226,7 @@ class ClassificationBase:
     def plot_log_loss(self, y="-(log loss)", ylabel="negative(log loss)",
                       filename=None):
         # TODO: break into another class that's IterativeModel
-        fig = self.plot_ys(x='step', y1=y, ylabel=ylabel)
+        fig = self.plot_ys(x='epoch', y1=y, ylabel=ylabel)
         if filename:
             fig.savefig(filename + '.pdf')
 
@@ -239,9 +244,9 @@ class ClassificationBase:
             x=self.results[x]
             y1=self.results[y1]
             y2=self.results[y2]
-            axs[0].semilogx(x, y1, linestyle='--', marker='o', color=colors[0])
+            axs[0].plot(x, y1, linestyle='--', marker='o', color=colors[0])
             # doing loglog for eta.
-            axs[1].loglog(x, y2, linestyle='--', marker='o', color=colors[1])
+            axs[1].plot(x, y2, linestyle='--', marker='o', color=colors[1])
 
         axs[0].axhline(y=0, color='k')
         # fill 2nd plot
@@ -263,10 +268,7 @@ class ClassificationBase:
                 loss = "(square loss)/N, training"
             else:
                 loss = "(square loss), training"
-        if self.steps > 900:
-            x = 'epoch (fractional)'
-        else:
-            x = 'step'
+        x = 'epoch'
         return self.plot_2_subplots(x=x, y1=loss, y2='eta', pandas=pandas)
 
     def plot_log_loss_normalized_and_eta(self, pandas=True):

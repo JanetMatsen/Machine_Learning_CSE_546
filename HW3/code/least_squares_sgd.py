@@ -21,6 +21,7 @@ class LeastSquaresSGD(ClassificationBase):
                  kernel=Fourier,
                  kernel_kwargs=None,
                  eta0_search_start=0.1,  # gets normalized by N
+                 eta0_max_pts=None,
                  max_epochs=50,  # of times passing through N pts
                  batch_size=10,
                  delta_percent=0.01, verbose=False,
@@ -69,7 +70,6 @@ class LeastSquaresSGD(ClassificationBase):
         # keep track of last n sets of weights to compute \bar(w)
         self.W_sums_for_epoch = self.W.copy() # Will average all the weight vectors for the epoch.
         self.W_vectors_in_sum = 1 # reset to 0 at the beginning of each epoch
-        self.W_bar_variance_df = pd.DataFrame()
         # Will be average weight vector for all steps in the epoch.
         self.W_bar = None # W_sums_for_epoch/W_vectors_in_sum
         if check_W_bar_fit_during_fitting:
@@ -79,7 +79,9 @@ class LeastSquaresSGD(ClassificationBase):
         self.eta0_search_start = eta0_search_start
         if eta0 is None:
             self.eta0_search_calls = 0
-            self.find_good_learning_rate()
+            if eta0_max_pts is None:
+                eta0_max_pts=5000
+            self.find_good_learning_rate(eta0_max_pts)
         else:
             self.eta0 = eta0
         self.eta = self.eta0
@@ -110,11 +112,9 @@ class LeastSquaresSGD(ClassificationBase):
             self.eta = self.eta0
         self.eta0_search_calls = 0
         self.zero_weights()
-        self.W_bar = None
         self.results = None
 
-    def find_good_learning_rate(self, max_divergence_streak_length=3,
-                                max_expochs=5, max_pts=5000):
+    def find_good_learning_rate(self,max_pts=5000):
         """
         Follow Sham's advice of cranking up learning rate until the model
         diverges, then cutting it back down 50%.
@@ -126,6 +126,9 @@ class LeastSquaresSGD(ClassificationBase):
         My tool defines divergence by having a string of sequential
         diverging update steps.
         """
+        max_divergence_streak_length=3
+        max_expochs=5
+
         # First scale the eta0 value by the number of points in the training set.
         eta0 = self.eta0_search_start/self.N
         starting_eta0 = eta0
@@ -133,6 +136,7 @@ class LeastSquaresSGD(ClassificationBase):
         eta0 = eta0/change_factor  # so we don't skip first value
 
         num_pts = min(max_pts, self.N)
+        print("Determining eta0 using {} points".format(num_pts))
         random_indices = np.random.choice(self.N, num_pts, replace=False)
         X = self.X[random_indices]
         y = self.y[random_indices]
@@ -187,7 +191,8 @@ class LeastSquaresSGD(ClassificationBase):
             # didn't cause divergence
             self.eta0 = eta0/change_factor
             self.eta = self.eta0
-            print("===== eta0 search landed on {} ====".format(self.eta0))
+            print("===== eta0 search landed on {}, using {} points ===="
+                  "".format(self.eta0, num_pts))
 
     def apply_weights(self, X):
         """
@@ -386,6 +391,8 @@ class LeastSquaresSGD(ClassificationBase):
             if self.converged:
                 print('model already converged.')
 
+            epoch_start_time = datetime.datetime.now()
+
             # Reset the weights for the epoch at the epoch's start.
             self.W_sums_for_epoch = np.zeros(shape=(self.kernel.d, self.C))
             self.W_vectors_in_sum = 0
@@ -423,9 +430,14 @@ class LeastSquaresSGD(ClassificationBase):
                 self.steps += 1
 
             # --- EPOCH IS OVER ---
+            epoch_stop_time = datetime.datetime.now()
+            if self.verbose:
+                print("iterating through epoch is done.  Time: {}.".format(
+                    self.time_delta(epoch_start_time, epoch_stop_time)))
 
             self.epochs += 1
             W_bar = self.calc_W_bar()
+            self.W_bar = W_bar
 
             # EPOCH IS OVER.  RECORD FIT STATS
             start_time = datetime.datetime.now()
@@ -545,7 +557,7 @@ class LeastSquaresSGD(ClassificationBase):
 
         # Make a copy of the model and replace the weights with the W_bar
         # weights
-        assert len(self.W_sums_for_epoch) > 0, "Need weights to do \\bar{W} stuff"
+        assert len(self.W_sums_for_epoch) > 0, "Need weights to do bar{W} stuff"
         model = self.copy(reset=False)
         model.W = self.calc_W_bar()
 
@@ -683,17 +695,16 @@ class LeastSquaresSGD(ClassificationBase):
         else:
             print("Doesn't handle plot of tpe {}.  Did you mean 'square' or '0/1'?")
         x = self.results['epoch']
-        sizes = [10, 5, 10, 5]
 
-        colors = ['#6baed6', '#08519c', '#74c476', '#006d2c']
+        colors = ['#bcbddc', '#756bb1', '#74c476', '#006d2c']
         if style == 'lines':
-            s_vals = ['-', ':', '-', ':']
+            s_vals = ['--', '-', '--', '-']
         elif style == 'dots':
             s_vals = [10, 5, 10, 5]
 
         for y, c, s in zip(y_vars, colors, s_vals):
             if style == 'lines':
-                plt.plot(x, self.results[y], linestyle=s, color=c)
+                plt.plot(x, self.results[y], linestyle=s, linewidth=3, color=c)
             elif style == 'dots':
                 plt.plot(x, self.results[y], linestyle='--',
                          marker='o', markersize=s, color=c, alpha=0.7)
@@ -701,9 +712,10 @@ class LeastSquaresSGD(ClassificationBase):
         ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.xlabel("epoch")
 
+        ax.set_ylim(bottom=0)
         plt.ylabel(ylabel)
         plt.tight_layout()
-        return plt
+        return fig
 
     @staticmethod
     def datetime():
