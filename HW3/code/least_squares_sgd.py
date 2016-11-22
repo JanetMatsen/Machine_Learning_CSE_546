@@ -80,7 +80,7 @@ class LeastSquaresSGD(ClassificationBase):
         if eta0 is None:
             self.eta0_search_calls = 0
             if eta0_max_pts is None:
-                eta0_max_pts=5000
+                eta0_max_pts=3000
             self.find_good_learning_rate(eta0_max_pts)
         else:
             self.eta0 = eta0
