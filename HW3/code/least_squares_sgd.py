@@ -250,6 +250,7 @@ class LeastSquaresSGD(ClassificationBase):
         Yhat_Wbar = None
 
         # for each chunk of X, transform to kernel and find Yhat.
+        num_iter = 0
         while n < N:
             # Find kernel-version of a chunk of X
             X_chunk = X[n: n+chunk_size, ]
@@ -262,6 +263,11 @@ class LeastSquaresSGD(ClassificationBase):
                                           weights=Wbar)
 
             n += X_chunk.shape[0]
+
+            num_iter += 1
+            if num_iter%100 == 0:
+                sys.stdout.write(",")
+        print("") # line break after , printing
 
         assert Yhat.shape == (N, self.C)
         if calc_for_W_bar:
@@ -405,6 +411,7 @@ class LeastSquaresSGD(ClassificationBase):
             # loop over ~all of the data points in little batches.
             num_pts = 0
             iter = 0
+            epoch_iters = 0
             while num_pts < self.N :
 
                 iter += 1
@@ -428,6 +435,14 @@ class LeastSquaresSGD(ClassificationBase):
                 self.points_sampled += X_sample.shape[0]  # every point ever
 
                 self.steps += 1
+                epoch_iters += 1
+                if epoch_iters%100 == 0:
+                    # one dot per 10 steps
+                    # Doesn't print anything for small N, but those don't take
+                    # long anyway.
+                    sys.stdout.write(".")
+
+            print("") # line break after . printing
 
             # --- EPOCH IS OVER ---
             epoch_stop_time = datetime.datetime.now()
@@ -482,7 +497,6 @@ class LeastSquaresSGD(ClassificationBase):
             old_W_bar = W_bar
             old_square_loss_norm = square_loss_norm
 
-            sys.stdout.write(".") # one dot per pass through ~ N pts
             if self.epochs == self.max_epochs:
                 print('\n!!! Max epochs ({}) reached. !!!'.format(self.max_epochs))
 

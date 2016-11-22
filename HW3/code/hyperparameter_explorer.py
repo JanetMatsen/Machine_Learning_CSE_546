@@ -92,6 +92,7 @@ class HyperparameterExplorer:
 
         # assess the model even if it didn't converge
         self.assess_model(m)
+        print("Model training & assessment completed.")
 
     def assess_model(self, model):
         m = model
