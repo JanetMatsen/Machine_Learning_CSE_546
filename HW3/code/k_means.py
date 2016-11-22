@@ -7,6 +7,7 @@ from statistics import mode
 import sys
 
 from pca import Pca
+import matplotlib.pyplot as plt
 
 class KMeans:
     def __init__(self, k, train_X, train_y, pca_obj,
@@ -47,6 +48,8 @@ class KMeans:
 
     @staticmethod
     def choose_random_points(X, y, n):
+        assert X.shape[0] == y.shape[0], \
+            'must sample from arrays with same length'
         indices = np.random.choice(X.shape[0], n, replace=False)
         return X[indices], y[indices]
 
@@ -60,6 +63,8 @@ class KMeans:
             old_center = self.center_coordinates[c]
             if self.verbose:
                 print("recenter cluster {}".format(c))
+            if np.isnan(old_center).any():
+                import pdb; pdb.set_trace()
             points = self.X[self.assignments == c]
             center = np.sum(points, axis=0)/points.shape[0]
             self.center_coordinates[c] = center
@@ -77,10 +82,13 @@ class KMeans:
         Blind to the label eventually associated with that cluster.
         :return:
         """
+        if np.isnan(self.center_coordinates).any():
+            import pdb; pdb.set_trace()
         if X is None:
             X = self.X
         distances = cdist(X, self.center_coordinates)
-        self.assignments = np.argmin(distances, axis=1)
+        self.assignments = np.nanargmin(distances, axis=1)
+
 
     def run(self):
         # assign points
@@ -129,7 +137,11 @@ class KMeans:
 
     def test_convergence_of_arrays(self, before, after):
         # Start by testing for identity.  Later can downgrade to small percent difference.
-        if np.sum(np.abs(before - after)) < 0.001:
+        difference = np.abs(before - after)
+        # TODO: make sure I like this handling
+        if np.isnan(difference).any():
+            return False
+        if np.sum(difference)/difference.size < 1e-10:
             return True
         else:
             return False
@@ -144,7 +156,9 @@ class KMeans:
             # return the mode, or the lowest # if two modes.
             mode_and_count = scipy_mode(labels)
             if len(mode_and_count[0]) == 0:
-                cluster_labels.append(0)
+                import pdb; pdb.set_trace()
+                mode = None
+                cluster_labels.append(mode)
             # Not sure this is the right place to put re-seeding, but do
             # it for now
             #    print("re-seed cluster # {}, which was empty".format(c))
@@ -156,8 +170,9 @@ class KMeans:
                 cluster_labels.append(mode)
 
             counts = Counter(labels)
-            print("majority label for center {}, with {} points: {}.  Counts "
-                  "of each item: {}".format(c, len(labels), mode, counts))
+            if self.verbose:
+                print("majority label for center {}, with {} points: {}.  Counts "
+                      "of each item: {}".format(c, len(labels), mode, counts))
 
         self.cluster_labels = cluster_labels
 
@@ -234,7 +249,9 @@ class KMeans:
         # Record
         results = {'iteration':self.num_iter,
                    'squared reconstruction error':
-                       self.squared_reconstruction_error()}
+                       self.squared_reconstruction_error(),
+                   '0/1 loss':self.loss_01(),
+                   '(0/1 loss)/N':self.loss_01_normalized()}
         result_df_row = pd.DataFrame.from_dict(results, orient='index').T
         self.results_df = pd.concat([self.results_df, result_df_row], axis=0)
 
@@ -262,6 +279,25 @@ class KMeans:
         center_numbers = None
         self.visualize_16_centers(center_numbers)
         pass
+
+    def plot_squared_reconstruction_error(self):
+        if self.results_df is None:
+            print("no data to plot")
+            return
+        fig, ax = plt.subplots(1, 1, figsize=(4,3))
+        x = self.results_df['iteration']
+        y = self.results_df['squared reconstruction error']
+        colors = ['#feb24c'] # color brewer orange
+
+        plt.plot(x, y, linestyle='-', marker='o', markersize=4,
+                 color=colors[0])
+        plt.legend(loc = 'best')
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.xlabel("iteration")
+        plt.ylabel("squared reconstruction error")
+        ax.set_ylim(bottom=0)
+        plt.tight_layout()
+        return fig
 
     def plot_num_assignments_for_each_center(self):
         """
