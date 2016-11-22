@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import mode as scipy_mode
 from scipy.spatial.distance import cdist
-from statistics import mode
+import subprocess
 import sys
 
 from pca import Pca
@@ -23,8 +23,7 @@ class KMeans:
         self.test_y = test_y
         # each row is a center.
         # Go back to pickled PCA object to get them back into image space
-        #if eigenvectors is not None:
-        #    self.pca = Pca(train_X, dimensions=50, center=True)
+        self.pca = pca_obj
 
         self.num_iter = 0
         self.max_iter = max_iter
@@ -89,7 +88,6 @@ class KMeans:
         distances = cdist(X, self.center_coordinates)
         self.assignments = np.nanargmin(distances, axis=1)
 
-
     def run(self):
         # assign points
         self.set_point_assignments()
@@ -133,7 +131,6 @@ class KMeans:
                 self.record_fit_statistics()
 
                 self.re_seed_empty_clusters()
-
 
     def test_convergence_of_arrays(self, before, after):
         # Start by testing for identity.  Later can downgrade to small percent difference.
@@ -247,9 +244,13 @@ class KMeans:
 
     def record_fit_statistics(self):
         # Record
+        squared_reconstruction_error = self.squared_reconstruction_error()
+
         results = {'iteration':self.num_iter,
                    'squared reconstruction error':
-                       self.squared_reconstruction_error(),
+                       squared_reconstruction_error,
+                   '(squared reconstruction error)/N':
+                        squared_reconstruction_error/self.N,
                    '0/1 loss':self.loss_01(),
                    '(0/1 loss)/N':self.loss_01_normalized()}
         result_df_row = pd.DataFrame.from_dict(results, orient='index').T
@@ -262,46 +263,122 @@ class KMeans:
         self.results_df_cluster_assignment_counts = \
             pd.concat([self.results_df_cluster_assignment_counts, row_results])
 
-    def visualize_center(self):
+    @staticmethod
+    def make_image(data, path=None):
+        plt.figure(figsize=(0.7,0.7))
+        p=plt.imshow(data.reshape(28, 28), origin='upper',
+                     interpolation='none')
+        p.set_cmap('gray_r')
+        plt.axis('off')
+        if path is not None:
+            plt.savefig(path)
+            plt.close()
+
+    def visualize_center(self, x, path=None):
         # First transform back into image space.
         # Use PCA object's methods.
-        pass
+        assert type(self.pca) == Pca, \
+            "Need a Pca object to go back to image space."
+        image_space = self.pca.transform_number_up(x, center=True)
+        assert image_space.shape[0] == 784
+        return self.make_image(image_space, path=path)
 
-    def visualize_16_centers(self, center_numbers):
-        pass
+    def clusters_by_num_in_cluster(self):
+        cts = self.results_df_cluster_assignment_counts.tail(1)
+        del cts['iteration']
+        cts = cts.T
+        cts.sort_values(by=0, ascending=False, inplace=True)
+        return cts
 
-    def visualize_top_16_centers(self):
+    def top_n_centers(self, n):
+        cts = self.clusters_by_num_in_cluster()
+        cts = cts[0]
+        indices = cts.nlargest(n).index.values
+        centers = []
+        for i in indices:
+            centers.append(self.center_coordinates[i])
+        assert len(centers) == n, "need to give back n centers."
+        return centers
+
+    def visualize_top_n_centers(self, n=16):
         """
         Visualize the 16 centers that you learned, and display them in an
         order in that corresponds to the frequency in which they were assigned
         """
-        # INCOMPLETE!!
-        center_numbers = None
-        self.visualize_16_centers(center_numbers)
-        pass
+        import pdb; pdb.set_trace()
+        centers_list = self.top_n_centers(n)
+        assert len(centers_list) == n, "expected {} coordinates".format(n)
+        paths = []
+        path_base = '../figures/k_means/'
+        for i, center in enumerate(centers_list):
+            path = path_base + \
+                   'k_{}_top_{}_centers_{}.pdf'.format(self.k, n, i)
+            print('saving to {}'.format(path))
 
-    def plot_squared_reconstruction_error(self):
+            # save image
+            self.visualize_center(center, path=path)
+            paths.append(path)
+
+        # stitch together w/ shell command
+        photo_paths = ' '.join(paths)
+        print('photo paths: \n{}'.format(photo_paths))
+        stitched_path = path_base + 'k_{}_top_{}_centers.pdf'.format(self.k, n)
+        shell_stitch_command = "convert +append {} {} ".format(photo_paths, stitched_path)
+        print(shell_stitch_command)
+        subprocess.call(shell_stitch_command, shell=True)
+
+    def plot_results(self, x_var, y_var, ylabel, color=None):
         if self.results_df is None:
             print("no data to plot")
             return
-        fig, ax = plt.subplots(1, 1, figsize=(4,3))
-        x = self.results_df['iteration']
-        y = self.results_df['squared reconstruction error']
-        colors = ['#feb24c'] # color brewer orange
 
-        plt.plot(x, y, linestyle='-', marker='o', markersize=4,
-                 color=colors[0])
+        if color is None:
+            color = '#feb24c' # orange
+
+        x = self.results_df[x_var]
+        y = self.results_df[y_var]
+
+        fig, ax = plt.subplots(1, 1, figsize=(4,3))
+
+        plt.plot(x, y, linestyle='-', marker='o', markersize=4, color=color)
         plt.legend(loc = 'best')
         ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.xlabel("iteration")
-        plt.ylabel("squared reconstruction error")
+        plt.xlabel(x_var)
+        plt.ylabel(ylabel)
         ax.set_ylim(bottom=0)
         plt.tight_layout()
         return fig
+
+    def plot_squared_reconstruction_error(self):
+        x = 'iteration'
+        y = 'squared reconstruction error'
+        color = '#feb24c' # orange
+        return self.plot_results(x_var=x, y_var=y, ylabel=y, color=color)
+
+    def plot_squared_reconstruction_error_normalized(self):
+        x = 'iteration'
+        y = '(squared reconstruction error)/N'
+        color = '#feb24c' # orange
+        return self.plot_results(x_var=x, y_var=y, ylabel=y, color=color)
+
+    def plot_0_1_loss(self):
+        x = 'iteration'
+        y = '(0/1 loss)/N'
+        color = '#31a354' # dark green
+        return self.plot_results(x_var=x, y_var=y, ylabel=y, color=color)
 
     def plot_num_assignments_for_each_center(self):
         """
         Plot the number of assignments for each center in descending order
         """
-        pass
+        cts = self.clusters_by_num_in_cluster()
+        c = cts[0]
+
+        fig, ax = plt.subplots(1, 1, figsize=(8,2.2))
+        plt.bar(range(c.shape[0]), c, align="center")
+        plt.xlim([0,len(c)])
+        plt.xlabel("cluster number (ordered)")
+        plt.ylabel("points in cluster")
+
+        return fig
 
