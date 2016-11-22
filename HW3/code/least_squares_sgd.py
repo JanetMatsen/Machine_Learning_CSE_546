@@ -267,7 +267,7 @@ class LeastSquaresSGD(ClassificationBase):
             num_iter += 1
             if num_iter%100 == 0:
                 sys.stdout.write(",")
-        print("") # line break after , printing
+        print(" (done calculating hat{Y})") # line break after , printing
 
         assert Yhat.shape == (N, self.C)
         if calc_for_W_bar:
@@ -442,12 +442,12 @@ class LeastSquaresSGD(ClassificationBase):
                     # long anyway.
                     sys.stdout.write(".")
 
-            print("") # line break after . printing
+            print(" (epoch complete)") # line break after . printing
 
             # --- EPOCH IS OVER ---
             epoch_stop_time = datetime.datetime.now()
             if self.verbose:
-                print("iterating through epoch is done.  Time: {}.".format(
+                print("Epoch iteration time: {}.".format(
                     self.time_delta(epoch_start_time, epoch_stop_time)))
 
             self.epochs += 1
