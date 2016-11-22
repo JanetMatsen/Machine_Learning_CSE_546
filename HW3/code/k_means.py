@@ -222,7 +222,7 @@ class KMeans:
 
     def num_assignments_per_cluster(self):
         # assumes assign_points() has been called just prior.
-        clusters = self.predictions
+        clusters = self.assignments
         counts = Counter(clusters)
         return dict(counts)
 
