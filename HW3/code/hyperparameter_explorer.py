@@ -220,6 +220,7 @@ class HyperparameterExplorer:
         self.final_model.check_W_bar_fit_during_fitting = True
         self.final_model.assess_test_data_during_fitting =True
 
+        print("replace X and Y before training on all the data")
         # replace the smaller training sets with the whole training set.
         self.final_model.replace_X_and_y(self.all_training_X,
                                          self.all_training_y)
@@ -228,6 +229,7 @@ class HyperparameterExplorer:
         if delta_percent is not None:
             self.delta_percent = delta_percent
 
+        print("fit the final model with all the training data")
         # find the best weights using all the data
         self.final_model.run()
         assert self.final_model.W_bar is not None, \
@@ -239,6 +241,8 @@ class HyperparameterExplorer:
         except:
             print("not all the plotting worked for the model run with"
                   "all of the training data")
+
+        print("Done training final model with all the training data.")
 
     def evaluate_test_data(self):
         assert self.final_model.W_bar is not None, \
