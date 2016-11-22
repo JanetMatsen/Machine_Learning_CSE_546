@@ -172,7 +172,7 @@ class HyperparameterExplorer:
         return self.summary[idx]
 
     def plot_fits(self, df=None, x=None, y1=None, y2=None,
-                  filename=None, xlim=None, ylim=None, logx=True):
+                  filename=None, xlim=None, ylim=None, logx=False):
         if x is None:
             x = self.primary_hyperparameter
         if df is None:
