@@ -598,6 +598,9 @@ class LeastSquaresSGD(ClassificationBase):
         all_W_bar_results = new_model.results_row()
         results = {re.sub("training", "testing", k): v
                    for k, v in all_W_bar_results.items()}
+        if self.results is not None:
+            print_cols = [c for c in results.keys() if "0/1 loss" in c]
+            print(pd.DataFrame(results)[print_cols].reset_index(drop=True).T)
 
         W_bar_results = new_model.observe_fit_using_W_bar()
         # already pluggs in the extra bar{W} string
