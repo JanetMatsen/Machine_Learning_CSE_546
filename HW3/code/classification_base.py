@@ -136,7 +136,7 @@ class ClassificationBase:
         elif "w" in self.__dict__.keys():
             self.w = new_weights
 
-    def apply_model(self, X, y, data_name, calc_for_W_bar=True):
+    def apply_model(self, X, y, data_name, use_W_bar=True):
         """
         Apply existing weights (for "base_model") to give predictions
         on different X data.
@@ -151,6 +151,9 @@ class ClassificationBase:
             assert new_model.y.shape == (y.shape[0], )
         else:
             assert new_model.Y.shape[0] == y.shape[0]
+
+        if use_W_bar:
+            self.W = self.W_bar
 
         # not training the new model this time!
         results = new_model.results_row()

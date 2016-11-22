@@ -23,7 +23,6 @@ class LeastSquaresSGD(ClassificationBase):
                  eta0_search_start=0.1,  # gets normalized by N
                  max_epochs=50,  # of times passing through N pts
                  batch_size=10,
-                 progress_monitoring_freq=60000,
                  delta_percent=0.01, verbose=False,
                  check_W_bar_fit_during_fitting=False,
                  test_X=None, test_y=None,
@@ -56,6 +55,7 @@ class LeastSquaresSGD(ClassificationBase):
         self.W = np.zeros(shape=(self.kernel.d, self.C))
 
         # set up attributes used for fitting
+        self.epochs = 0
         self.max_epochs = max_epochs
         self.delta_percent = delta_percent
         self.steps = 0
@@ -63,19 +63,15 @@ class LeastSquaresSGD(ClassificationBase):
         self.verbose = verbose
 
         self.batch_size = batch_size
-        assert progress_monitoring_freq%batch_size == 0, \
-            "need to monitor at frequencies that are multiples of the " \
-            "mini-batch size."
-        print("Remember not to check the loss too often.  Super $$expensive$$!")
-        self.progress_monitoring_freq = progress_monitoring_freq
-        self.epochs = 1
         self.points_sampled = 0
         self.converged = False # Set True if converges.
 
         # keep track of last n sets of weights to compute \bar(w)
-        self.last_n_weights = [self.W.copy()] # should be None
+        self.W_sums_for_epoch = self.W.copy() # Will average all the weight vectors for the epoch.
+        self.W_vectors_in_sum = 1 # reset to 0 at the beginning of each epoch
         self.W_bar_variance_df = pd.DataFrame()
-        self.W_bar = None
+        # Will be average weight vector for all steps in the epoch.
+        self.W_bar = None # W_sums_for_epoch/W_vectors_in_sum
         if check_W_bar_fit_during_fitting:
             print("Checking bar{W} as we go.  Adds expense!")
         self.check_W_bar_fit_during_fitting = check_W_bar_fit_during_fitting
@@ -94,6 +90,9 @@ class LeastSquaresSGD(ClassificationBase):
         model = super(LeastSquaresSGD, self).copy(reset=reset)
         return model
 
+    def zero_weights(self):
+        self.W = np.zeros(shape=(self.kernel.d, self.C))
+
     def reset_model(self):
         """
         Reset everything *except* the weights, and model-fitting to date
@@ -110,13 +109,12 @@ class LeastSquaresSGD(ClassificationBase):
             self.eta0_search_start = self.eta0
             self.eta = self.eta0
         self.eta0_search_calls = 0
-        self.last_n_weights = [self.W.copy()] # erase old weights
+        self.zero_weights()
         self.W_bar = None
         self.results = None
 
     def find_good_learning_rate(self, max_divergence_streak_length=3,
-                                max_expochs=5, max_pts = 1000):
-        # TODO: bump back up from 5, and raise max_pts
+                                max_expochs=5, max_pts=5000):
         """
         Follow Sham's advice of cranking up learning rate until the model
         diverges, then cutting it back down 50%.
@@ -158,8 +156,7 @@ class LeastSquaresSGD(ClassificationBase):
                 # Test high learning rates until the model diverges.
                 model.reset_model()
                 # reset weights (can't assert!)
-                model.W = np.zeros(model.W.shape)
-                model.progress_monitoring_freq = model.N
+                model.zero_weights()
                 model.eta0 = eta0
                 model.eta = eta0
                 model.max_epochs = max_expochs # make sure it fails pretty fast.
@@ -170,7 +167,6 @@ class LeastSquaresSGD(ClassificationBase):
                     passed = False
                 # If that passed without exception, passed = True
             except ModelFitException as e:
-
                 print("Model training raised an exception.")
                 passed = False
         assert rates_tried >= 1, "\n eta0 didn't change; start lower"
@@ -183,7 +179,7 @@ class LeastSquaresSGD(ClassificationBase):
             raise ModelFitException("eta0 search failed")
 
         if rates_tried == 1:
-            print("--- eta0 didn't change; start 100x lower --- \n")
+            print("--- eta0 didn't change; start 125x lower --- \n")
             self.eta0_search_start = self.eta0_search_start/5**3
             self.find_good_learning_rate()
         else:
@@ -197,6 +193,7 @@ class LeastSquaresSGD(ClassificationBase):
         """
         Calculate the prediction matrix: Y_bar = XW.  No bias.
         """
+        # Todo: change to self.W   This was leftover from prev code
         return X.dot(self.get_weights())
 
     def step(self, X, Y):
@@ -207,14 +204,10 @@ class LeastSquaresSGD(ClassificationBase):
         n, d = X.shape  # n and d of the sub-sample of X
         assert n == Y.shape[0]
         assert X.shape == (n, self.kernel.d)
-        # TODO: be positive I use W for all the points so far.
 
-        # TODO: apply kernel, or before the step.  Then assert it's right dim
         gradient = -(1./n)*X.T.dot(Y - X.dot(self.W))
         assert gradient.shape == (self.kernel.d, self.C)
 
-        # TODO: do I scale eta by N still?
-        # TODO: subtract the gradient for grad descent (?)
         assert self.eta is not None
         self.W += -(self.eta/n)*gradient
         assert self.W.shape == (self.kernel.d ,self.C), \
@@ -226,7 +219,7 @@ class LeastSquaresSGD(ClassificationBase):
         Produce an (NxC) array of classes predictions on X, which has *not*
         been transformed by the kernel.
         """
-        assert self.W is not None, "Can't calc \hat{Y} without weights, W."
+        assert self.W is not None, "Can't calc hat{Y} without weights, W."
         X = self.X
 
         if X.shape[0] < chunk_size:
@@ -234,7 +227,7 @@ class LeastSquaresSGD(ClassificationBase):
         N = X.shape[0]
         n = 0
         if calc_for_W_bar:
-            assert len(self.last_n_weights) > 0, "need weights for \bar{W}"
+            assert len(self.W_sums_for_epoch) > 0, "need weights for bar{W}"
             Wbar = self.calc_W_bar()
             assert Wbar is not None
 
@@ -318,7 +311,8 @@ class LeastSquaresSGD(ClassificationBase):
         Expensive!  Computes stuff for the (Nxd) X matrix.
         """
         # append on logistic regression-specific results
-        if len(self.last_n_weights) >= 1 and self.check_W_bar_fit_during_fitting:
+        if len(self.W_sums_for_epoch) >= 1 and \
+                self.check_W_bar_fit_during_fitting:
             calc_for_W_bar = True
         else:
             # can't calculate anything before the weights have been set once.
@@ -340,7 +334,7 @@ class LeastSquaresSGD(ClassificationBase):
             "epoch": [self.epochs],
             "epoch (fractional)": [(self.steps - self.fast_steps)/(self.N) + 1],
             "batch size": [self.batch_size],
-            "points": [self.points_sampled],
+            "points": [self.points_sampled]
             }
         row.update(more_details)
         kernel_info = self.kernel.info()
@@ -351,40 +345,50 @@ class LeastSquaresSGD(ClassificationBase):
 
     def calc_W_bar(self):
         """
-        \bar{W} is the average weights over the last n fittings
+        bar{W} is the average of the weight vectors for the epoch
         """
-        assert len(self.last_n_weights) > 0, "need weights to calc \bar{W}"
-        return np.array(self.last_n_weights).sum(axis=0)/\
-               len(self.last_n_weights)
+        return self.W_sums_for_epoch/self.W_vectors_in_sum
 
-    def update_W_bar(self, weight_array, n=5):
+    def add_W_to_epoch_W_sum(self, weight_array):
         """
         \bar{W} is the average weights over the last n fittings
 
         It is built from a tuple of previous weights, stored in
         self.last_n_weights.
         """
-        if len(self.last_n_weights) >= n:
-            self.last_n_weights.pop(0)
-        self.last_n_weights.append(weight_array)
-        self.W_bar = self.calc_W_bar()
+        assert weight_array.shape == self.W_sums_for_epoch.shape
+        self.W_sums_for_epoch = \
+            np.add(self.W_sums_for_epoch, weight_array)
 
     def run(self, max_divergence_streak_length=7, rerun=False):
 
         # To support running model longer, need to retrieve
         if rerun:
-            old_square_loss_norm = \
-                self.results.tail(1).reset_index()['(square loss)/N, training'][0]
             print("Before re-run, epochs = {}, steps = {}".format(
                 self.epochs, self.steps))
+            if self.results is None:
+                self.results = pd.concat([self.results, self.observe_fit()], axis=0)
+        else:
+            self.results = pd.concat([self.results, self.observe_fit()], axis=0)
+            self.W_sums_for_epoch = \
+                np.zeros(shape=(self.kernel.d, self.C))
 
         # initialize the statistic for tracking variance
         # Should be zero if weights are initially zero.
-        old_W_bar_variance = self.W_bar_variance()
+        old_W_bar = self.calc_W_bar()
+        self.W_vectors_in_sum = 0
 
+        old_square_loss_norm = \
+                self.results.tail(1).reset_index()['(square loss)/N, training'][0]
 
         # Step until converged
-        while self.epochs < self.max_epochs and not self.converged:
+        while self.epochs < self.max_epochs:
+            if self.converged:
+                print('model already converged.')
+
+            # Reset the weights for the epoch at the epoch's start.
+            self.W_sums_for_epoch = np.zeros(shape=(self.kernel.d, self.C))
+            self.W_vectors_in_sum = 0
 
             if self.verbose:
                 print('Begin epoch {}'.format(self.epochs))
@@ -397,14 +401,6 @@ class LeastSquaresSGD(ClassificationBase):
             while num_pts < self.N :
 
                 iter += 1
-                if self.points_sampled%self.progress_monitoring_freq == 0:
-                    take_pulse = True
-                # add extra monitoring for first few steps; this gives extra
-                # awareness of model divergence.
-                elif rerun and num_pts == 0:
-                    take_pulse = True
-                else:
-                    take_pulse = False
 
                 idx_start = num_pts
                 idx_stop = num_pts + self.batch_size
@@ -413,64 +409,67 @@ class LeastSquaresSGD(ClassificationBase):
                 X_sample = self.kernel.transform(X_sample)
                 Y_sample = Y[idx_start:idx_stop, ]
 
+                # update W
                 self.step(X_sample, Y_sample)
 
+                # Add weight to total, which will be divided by N at the end.
+                self.add_W_to_epoch_W_sum(self.W)
+                self.W_vectors_in_sum += 1
+
+                # get ready for next loop
                 num_pts += X_sample.shape[0]  # loop-scoped count
-                last_pass = num_pts == self.N # True if last loop in epoch
                 self.points_sampled += X_sample.shape[0]  # every point ever
 
-                # assess \bar{W} every N points
-                # or the first pass of a re-run
-                if last_pass or (rerun and iter==1):
-                    # update the average of recent weight vectors
-                    self.update_W_bar(self.W)
-                    W_bar_variance, W_bar_percent_improvement = \
-                        self.check_W_bar_fit(old_W_bar_variance)
+                self.steps += 1
 
-                # take the more expensive pulse, using Yhat, which
-                # requires kernel transformatin of all of X.
-                if take_pulse:
-                    start_time = datetime.datetime.now()
-                    self.results = pd.concat([self.results, self.observe_fit()], axis=0)
-                    if self.verbose:
-                        stop_time = datetime.datetime.now()
-                        print("fit observation done: {}.".format(
-                            self.time_delta(start_time, stop_time)))
+            # --- EPOCH IS OVER ---
 
-                    square_loss_norm = \
-                        self.results.tail(1).reset_index()['(square loss)/N, training'][0]
-                    assert square_loss_norm is not None, \
-                        "square loss shouldn't be None"
+            self.epochs += 1
+            W_bar = self.calc_W_bar()
 
-                    if square_loss_norm/self.N > 1e3:
-                        s = "square loss/N/N grew to {}".format(
-                            square_loss_norm/self.N)
-                        raise ModelFitException(s)
+            # EPOCH IS OVER.  RECORD FIT STATS
+            start_time = datetime.datetime.now()
+            epoch_results = self.observe_fit()
+            epoch_results['bar{W} update variance'] = \
+                self.W_bar_update_variance(old_W_bar, W_bar)
+            self.results = pd.concat([self.results, epoch_results], axis=0)
+            if self.verbose:
+                stop_time = datetime.datetime.now()
+                print("fit observation done: {}.".format(
+                    self.time_delta(start_time, stop_time)))
 
-                if take_pulse and self.epochs > 1:
-                    square_loss_percent_improvement = self.percent_change(
-                        new = square_loss_norm, old = old_square_loss_norm)
-                    if self.verbose:
-                        print(square_loss_norm)
-                    if self.test_convergence(square_loss_percent_improvement,
-                                             W_bar_percent_improvement):
-                        print("Loss optimized.  Old/N: {}, new/N:{}. Eta: {}"
-                              "".format(old_square_loss_norm, square_loss_norm,
-                                        self.eta))
-                        self.converged = True
-                        break
-                    elif self.test_divergence(n=max_divergence_streak_length):
-                        raise ModelFitException(
-                            "\nSquare loss grew {} measurements in a row!"
-                            "".format(max_divergence_streak_length))
+            # TEST FOR CONVERGENCE
+            square_loss_norm = \
+                self.results.tail(1).reset_index()['(square loss)/N, training'][0]
+            assert square_loss_norm is not None, \
+                "square loss shouldn't be None"
 
-                old_square_loss_norm = square_loss_norm
+            if square_loss_norm/self.N > 1e3:
+                s = "square loss/N/N grew to {}".format(
+                    square_loss_norm/self.N)
+                raise ModelFitException(s)
 
-                if last_pass:
-                    # record variables for next loop
-                    old_W_bar_variance = W_bar_variance
+            if self.epochs > 1:
+                square_loss_percent_improvement = self.percent_change(
+                    new = square_loss_norm, old = old_square_loss_norm)
 
-            self.epochs +=1
+                if self.verbose:
+                    print(square_loss_norm)
+                if self.percent_metrics_converged(square_loss_percent_improvement):
+                    print("Loss optimized.  Old/N: {}, new/N:{}. Eta: {}"
+                          "".format(old_square_loss_norm, square_loss_norm,
+                                    self.eta))
+                    self.converged = True
+                    break
+                    return
+                elif self.test_divergence(n=max_divergence_streak_length):
+                    raise ModelFitException(
+                        "\nSquare loss grew {} measurements in a row!"
+                        "".format(max_divergence_streak_length))
+
+            old_W_bar = W_bar
+            old_square_loss_norm = square_loss_norm
+
             sys.stdout.write(".") # one dot per pass through ~ N pts
             if self.epochs == self.max_epochs:
                 print('\n!!! Max epochs ({}) reached. !!!'.format(self.max_epochs))
@@ -482,7 +481,7 @@ class LeastSquaresSGD(ClassificationBase):
         print('final normalized training (square loss): {}'.format(square_loss_norm))
         self.results.reset_index(drop=True, inplace=True)
 
-    def run_longer(self, epochs, progress_monitoring_freq=None,
+    def run_longer(self, epochs,
                    delta_percent=None, max_divergence_streak_length=None,
                    fast_steps=None):
         print("Run model (currently with with {} steps) longer."
@@ -506,34 +505,14 @@ class LeastSquaresSGD(ClassificationBase):
         if delta_percent is not None:
             self.delta_percent = delta_percent
 
-        if progress_monitoring_freq is not None:
-            self.progress_monitoring_freq = progress_monitoring_freq
-
         if max_divergence_streak_length is not None:
             self.run(max_divergence_streak_length=max_divergence_streak_length)
         else:
             self.run(rerun=True)
 
-    def W_bar_variance(self):
-        assert len(self.last_n_weights) > 0, "Need weights to calc weight var"
-        return np.var(self.calc_W_bar())
-
-    def check_W_bar_fit(self, old_W_bar_variance):
-        self.update_W_bar(self.W, n=5)
-        new_W_bar_variance = self.W_bar_variance()
-
-        W_bar_percent_improvement = self.percent_change(
-            new=new_W_bar_variance, old=old_W_bar_variance)
-
-        # record the improvement:
-        W_bar_improvement = pd.DataFrame(
-            {'epoch':[self.epochs],
-             '\bar{W} variance % change': [W_bar_percent_improvement]})
-        # record it in our tracker.
-        self.W_bar_variance_df = pd.concat([self.W_bar_variance_df,
-                                            W_bar_improvement], axis=0)
-
-        return new_W_bar_variance, W_bar_percent_improvement
+    def W_bar_update_variance(self, old_W_bar, new_W_bar):
+        difference = np.subtract(new_W_bar, old_W_bar)
+        return np.var(difference)
 
     def observe_fit(self):
         row_results = pd.DataFrame(self.results_row())
@@ -566,7 +545,7 @@ class LeastSquaresSGD(ClassificationBase):
 
         # Make a copy of the model and replace the weights with the W_bar
         # weights
-        assert len(self.last_n_weights) > 0, "Need weights to do \\bar{W} stuff"
+        assert len(self.W_sums_for_epoch) > 0, "Need weights to do \\bar{W} stuff"
         model = self.copy(reset=False)
         model.W = self.calc_W_bar()
 
@@ -606,18 +585,6 @@ class LeastSquaresSGD(ClassificationBase):
         results_df = pd.DataFrame(results)[columns]
         assert results_df.shape[0] == 1, "Results for bar{W} should be length 1"
         return results_df
-
-    def test_convergence(self, square_loss_percent_improvement,
-                         W_bar_percent_improvement):
-        if self.percent_metrics_converged(square_loss_percent_improvement,
-                                          W_bar_percent_improvement):
-            # record convergence status
-            self.converged = True # flag that it converged.
-
-            return True
-
-        else:
-            return False
 
     def test_divergence(self, n):
         """
@@ -687,11 +654,11 @@ class LeastSquaresSGD(ClassificationBase):
         if filename is not None:
             fig.savefig(filename + '.pdf')
 
-    def plot_W_bar_history(self):
+    def plot_W_bar_update_variance(self):
         x = 'epoch'
-        y1 = '\bar{W} variance % change'
-        self.plot_ys(df=self.W_bar_variance_df, x=x, y1=y1, y2=None,
-                     ylabel= "bar{W} variance % change",
+        y1 = 'bar{W} update variance'
+        self.plot_ys(x=x, y1=y1, y2=None,
+                     ylabel= "bar{W} update variance",
                      y0_line=True, logx=False, logy=False,
                      colors=None, figsize=(4, 3))
 
