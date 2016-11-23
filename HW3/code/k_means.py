@@ -1,4 +1,5 @@
 from collections import Counter
+import copy
 import numpy as np
 import pandas as pd
 from scipy.stats import mode as scipy_mode
@@ -237,7 +238,7 @@ class KMeans:
         squared_distance_sum = 0
         for i in range(self.X.shape[0]):
             center = self.center_for_number(i)
-            dist = np.linalg.norm(self.X[i] - center)
+            dist = np.linalg.norm(self.X[i] - center, ord=2)
             dist_squared = dist**2
             squared_distance_sum += dist_squared
         return squared_distance_sum
@@ -400,3 +401,27 @@ class KMeans:
 
         return fig
 
+    def assess_test_data(self):
+        test_model = copy.copy(self)
+        test_model.X = self.test_X
+        test_model.y = self.test_y
+        test_model.N, test_model.d = test_model.X.shape
+
+        ## model characteristics
+        #test_model.assignments = None # cluster assignment.  Does not know about labels.
+        #test_model.predictions = None # label assignment.  Does not know about cluster.
+
+        test_model.results_df = None
+        # todo: rename
+        test_model.results_df_cluster_assignment_counts = None
+
+        test_model.set_point_assignments()
+        test_model.set_centers_classes()
+        test_model.set_predicted_labels()
+
+        test_model.record_count_of_assignments_to_each_mean()
+        test_model.record_fit_statistics()
+        print("test results:")
+        print(test_model.results_df.T)
+
+        self.test_model = test_model
