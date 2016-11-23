@@ -300,19 +300,30 @@ class KMeans:
         assert len(centers) == n, "need to give back n centers."
         return centers
 
-    def visualize_top_n_centers(self, n=16):
+    def visualize_n_centers(self, n=16, top=True, dir='../figures/k_means/'):
         """
         Visualize the 16 centers that you learned, and display them in an
         order in that corresponds to the frequency in which they were assigned
         """
-        import pdb; pdb.set_trace()
-        centers_list = self.top_n_centers(n)
+        if top:
+            centers_list = self.top_n_centers(n)
+            photo_string = "top"
+        else:
+            # Get random cluster centers.
+            random_indices = \
+                np.random.choice(self.center_coordinates.shape[0], n, replace=False)
+            centers_list = []
+            for i in random_indices:
+                centers_list.append(self.center_coordinates[i])
+            photo_string = 'random'
+
         assert len(centers_list) == n, "expected {} coordinates".format(n)
         paths = []
-        path_base = '../figures/k_means/'
+        # cant use base b/c of the convert shell command.
+        dir = dir
+
         for i, center in enumerate(centers_list):
-            path = path_base + \
-                   'k_{}_top_{}_centers_{}.pdf'.format(self.k, n, i)
+            path = 'k_{}_{}_{}_centers_{}.pdf'.format(self.k, photo_string, n, i)
             print('saving to {}'.format(path))
 
             # save image
@@ -322,10 +333,16 @@ class KMeans:
         # stitch together w/ shell command
         photo_paths = ' '.join(paths)
         print('photo paths: \n{}'.format(photo_paths))
-        stitched_path = path_base + 'k_{}_top_{}_centers.pdf'.format(self.k, n)
+        stitched_path = 'k_{}_{}_{}_centers.pdf'.format(self.k, photo_string, n)
+        paths.append(stitched_path)
+
         shell_stitch_command = "convert +append {} {} ".format(photo_paths, stitched_path)
         print(shell_stitch_command)
         subprocess.call(shell_stitch_command, shell=True)
+        for path in paths:
+            move_command = 'mv {} {}'.format(path, dir)
+            print("move command: `{}`".format(move_command))
+            subprocess.call(move_command, shell=True)
 
     def plot_results(self, x_var, y_var, ylabel, color=None):
         if self.results_df is None:
@@ -376,9 +393,10 @@ class KMeans:
 
         fig, ax = plt.subplots(1, 1, figsize=(8,2.2))
         plt.bar(range(c.shape[0]), c, align="center")
-        plt.xlim([0,len(c)])
+        #plt.xlim([0,len(c)])
         plt.xlabel("cluster number (ordered)")
         plt.ylabel("points in cluster")
+        plt.tight_layout()
 
         return fig
 
