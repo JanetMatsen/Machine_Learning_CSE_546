@@ -12,7 +12,7 @@ class HyperparameterExplorer:
                  validation_split=0.1, test_X=None, test_y=None,
                  # only used for final training on all of the training data.
                  assess_test_data_during_fitting=True,
-                 use_prev_best_weights=True):
+                 use_prev_best_weights=False):
 
         # check data
         assert X.shape[0] == y.shape[0]

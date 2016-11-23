@@ -1,5 +1,6 @@
 from functools import partial
 import datetime
+import math
 import numpy as np
 import sys
 import pandas as pd
@@ -20,7 +21,7 @@ class LeastSquaresSGD(ClassificationBase):
     def __init__(self, X, y, eta0=None, W=None,
                  kernel=Fourier,
                  kernel_kwargs=None,
-                 eta0_search_start=0.1,  # gets normalized by N
+                 eta0_search_start=10,  # gets normalized by N
                  eta0_max_pts=None,
                  max_epochs=50,  # of times passing through N pts
                  batch_size=10,
@@ -126,11 +127,13 @@ class LeastSquaresSGD(ClassificationBase):
         My tool defines divergence by having a string of sequential
         diverging update steps.
         """
-        max_divergence_streak_length=3
-        max_expochs=5
+        max_divergence_streak_length=2
+        max_expochs=3
 
         # First scale the eta0 value by the number of points in the training set.
         eta0 = self.eta0_search_start/self.N
+        print("eta0 search begins with eta0 = {}/{} = {}"
+              "".format(self.eta0_search_start, self.N, eta0))
         starting_eta0 = eta0
         change_factor = 5
         eta0 = eta0/change_factor  # so we don't skip first value
@@ -206,11 +209,20 @@ class LeastSquaresSGD(ClassificationBase):
         Update the weights and bias, using X which *has* been transformed
         by the kernel
         """
+        if np.isnan(X).any():
+            print("warning: X has some nan in it")
+        if np.isnan(Y).any():
+            print("warning: Y has some nan in it")
+
         n, d = X.shape  # n and d of the sub-sample of X
         assert n == Y.shape[0]
         assert X.shape == (n, self.kernel.d)
 
         gradient = -(1./n)*X.T.dot(Y - X.dot(self.W))
+        if np.isnan(gradient).any():
+            print("gradient might have gotten too large")
+            print(gradient)
+            raise ModelFitException("Model gradient must have gotten too large")
         assert gradient.shape == (self.kernel.d, self.C)
 
         assert self.eta is not None
@@ -235,10 +247,12 @@ class LeastSquaresSGD(ClassificationBase):
             assert len(self.W_sums_for_epoch) > 0, "need weights for bar{W}"
             Wbar = self.calc_W_bar()
             assert Wbar is not None
+            assert not np.isnan(Wbar).any()
 
         def build_up_Yhat(X_chunk, Yhat, weights):
             assert weights is not None
             Yhat_chunk = X_chunk.dot(weights)
+            assert not np.isnan(Yhat_chunk).any()
             assert Yhat_chunk.shape == (X_chunk.shape[0], self.C)
             if Yhat is None:
                 Yhat = Yhat_chunk
@@ -256,6 +270,8 @@ class LeastSquaresSGD(ClassificationBase):
             X_chunk = X[n: n+chunk_size, ]
             kernel_chunk = self.kernel.transform(X_chunk)
             assert kernel_chunk.shape == (X_chunk.shape[0], self.kernel.d)
+
+            assert not np.isnan(self.W).any()
 
             Yhat = build_up_Yhat(X_chunk=kernel_chunk, Yhat=Yhat, weights=self.W)
             if calc_for_W_bar:
@@ -302,7 +318,9 @@ class LeastSquaresSGD(ClassificationBase):
 
         # element-wise squaring:
         errors_squared = np.multiply(errors, errors)
-        return errors_squared.sum()
+        squares_sum = errors_squared.sum()
+        assert not math.isnan(squares_sum)
+        return squares_sum
 
     def shrink_eta(self, s_exp=0.5):
         """
@@ -470,6 +488,7 @@ class LeastSquaresSGD(ClassificationBase):
                 self.results.tail(1).reset_index()['(square loss)/N, training'][0]
             assert square_loss_norm is not None, \
                 "square loss shouldn't be None"
+            assert not math.isnan(square_loss_norm), "square loss can't be nan"
 
             if square_loss_norm/self.N > 1e3:
                 s = "square loss/N/N grew to {}".format(

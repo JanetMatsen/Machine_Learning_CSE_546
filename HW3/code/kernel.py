@@ -39,8 +39,9 @@ class Fourier:
         self.vectors = np.random.randn(n, self.k)
 
     def transform(self, X):
-        dot_prod = X.dot(self.vectors)
-        return np.exp(dot_prod/self.sigma)
+        #dot_prod = X.dot(self.vectors)
+        #return np.exp(dot_prod/self.sigma)
+        return np.sin(np.dot(X, self.vectors)/self.sigma)
 
     def info(self):
         return {'sigma':[self.sigma]}
