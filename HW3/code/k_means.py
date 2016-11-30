@@ -170,7 +170,7 @@ class KMeans:
             counts = Counter(labels)
             if self.verbose:
                 print("majority label for center {}, with {} points: {}.  Counts "
-                      "of each item: {}".format(c, len(labels), mode, counts))
+                      "of each label: {}".format(c, len(labels), mode, counts))
 
         self.cluster_labels = cluster_labels
 
@@ -425,3 +425,4 @@ class KMeans:
         print(test_model.results_df.T)
 
         self.test_model = test_model
+        return test_model.results_df.T
