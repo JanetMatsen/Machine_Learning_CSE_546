@@ -1,5 +1,0 @@
-=== Q1 ===
-- I generated pictures that added the center back in 161117 but haven't stitched them or put it in LaTeX
-
-=== General ===
-- answer all the PCA questions.
