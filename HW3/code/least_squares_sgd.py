@@ -722,7 +722,7 @@ class LeastSquaresSGD(ClassificationBase):
 
         if loss == 'square':
             y_vars = ['(square loss)/N, training', '(square loss)/N, training (bar{W})',
-                      '(square loss)/N, testing (bar{W})', '(square loss)/N, testing']
+                      '(square loss)/N, testing', '(square loss)/N, testing (bar{W})']
             ylabel = "square loss, normalized"
         elif loss == '0/1':
             y_vars = ['training (0/1 loss)/N', 'training (bar{W}) (0/1 loss)/N',
