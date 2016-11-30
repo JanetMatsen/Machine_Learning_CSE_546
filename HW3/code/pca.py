@@ -190,7 +190,7 @@ def plot_fractional_reconstruction_error(pca_obj, start=None, stop=None,
     plt.plot(x, y, linestyle='--', marker='o', color='#756bb1')
     plt.legend(loc='best')
     plt.xlabel("k")
-    plt.ylabel("fractional reconstrction error")
+    plt.ylabel("fractional reconstruction error")
     if title is None:
         title = "Q-1-2-2"
     plt.title(title)
