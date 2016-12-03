@@ -1,3 +1,4 @@
+import math
 import numpy as np
 
 from TransferFunctions import LinearTF, TanhTF, ReLuTF
@@ -125,6 +126,10 @@ class NeuralNet:
         self.W1 += - self.eta*W1_grad
 
     def run(self, epochs):
+        print("loss before: \n")
+        predictions = self.predict(self.X)
+        print(self.loss(predictions, self.Y))
+
         # should *not* be written assuming it will only be called once
         # TODO: shuffle X, Y
         for epoch in range(epochs + 1):
@@ -144,17 +149,33 @@ class NeuralNet:
 
         print('Iterated {} epoch(s)'.format(epochs))
 
-    def out_layer_grad(self):
-        diff = Y - Y_hat  # [Y - hat{Y}]
-        grad = self.outputTF.grad(self.output_z)  # f'(z^(n_l)
-        # element-wise multiplication:
-        return np.multiply(diff, grad)
+        print("loss after: \n")
+        predictions = self.predict(self.X)
+        print(self.loss(predictions, self.Y))
+
+    #def out_layer_grad(self):
+    #    diff = Y - Y_hat  # [Y - hat{Y}]
+    #    grad = self.outputTF.grad(self.output_z)  # f'(z^(n_l)
+    #    # element-wise multiplication:
+    #    return np.multiply(diff, grad)
 
     def predict_y_from_Y(self):
         # for a one-hot-encoded Y, predict y
         pass
 
-    def loss_01(self):
+    def loss(self, Y_predicted, Y_truth):
         # given y, and hat{y}, how many are wrong?
-        pass
+        assert Y_predicted.shape == Y_truth.shape, 'shapes unequal'
+        n_pts = Y_truth.shape[1]
+        errors = Y_predicted - Y_truth
+        errors_squared = np.multiply(errors, errors)
+        squares_sum = errors_squared.sum()
+        assert not math.isnan(squares_sum)
+        return squares_sum
+
+    def loss_01(self, y_predicted, y_truth):
+        # given y, and hat{y}, how many are wrong?
+        assert y_predicted.shape == y_truth.shape, 'shapes unequal'
+        n_pts = y_truth.shape[1]
+        return n_pts - np.equal(y_predicted, y_truth).sum()
 
