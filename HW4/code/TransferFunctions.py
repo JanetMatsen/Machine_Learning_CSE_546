@@ -1,14 +1,14 @@
 import numpy as np
 
 class LinearTF:
-    def __init__(self, n_nodes):
+    def __init__(self, n_in, n_nodes):
         self.name = 'linear'
-        self.n = n_nodes
+        self.n_in = n_in
+        self.n_nodes = n_nodes
         pass
 
     @staticmethod
     def f(z):
-        self.z = z
         return z
 
     @staticmethod
@@ -16,12 +16,14 @@ class LinearTF:
         return z
 
     def initialize_weights(self):
-        pass
+        return np.random.normal(0, 1, size=(self.n_nodes, self.n_in))
 
 
 class TanhTF:
-    def __init__(self):
+    def __init__(self, n_in, n_nodes):
         self.name = 'tanh'
+        self.n_in = n_in
+        self.n_nodes = n_nodes
         pass
 
     @staticmethod
@@ -31,8 +33,7 @@ class TanhTF:
         """
         return np.tanh(z)
 
-    @staticmethod
-    def grad(z):
+    def grad(self, z):
         """
         f′(z) = 1−(f(z))^2
         :param x: z
@@ -44,8 +45,10 @@ class TanhTF:
 
 
 class ReLuTF:
-    def __init__(self):
+    def __init__(self, n_in, n_nodes):
         self.name = 'ReLu'
+        self.n_in = n_in
+        self.n_nodes = n_nodes
         pass
 
     @staticmethod
