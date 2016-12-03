@@ -10,7 +10,8 @@ class NeuralNet:
                  hidden_nodes,
                  hiddenTF,
                  outputTF,
-                 minibatch_size):
+                 minibatch_size,
+                 eta0):
         self.X = X  # columns are data points, rows are features
         self.y = y
         self.d, self.N = X.shape
@@ -36,7 +37,10 @@ class NeuralNet:
         self.output_delta = None
 
         self.minibatch_size = minibatch_size
-        self.step = 0
+        self.eta0 = eta0
+        self.eta = eta0
+        self.steps = 0
+        self.epochs = 0
 
     def y_to_Y(self):
         '''
@@ -49,18 +53,6 @@ class NeuralNet:
         Y[self.y, np.arange(len(self.y))] = 1
         return Y
 
-    def loss_function(self, X=None, y=None):
-        pass
-
-    def gradients(self):
-        pass
-
-    def step(self):
-        pass
-
-    def output(self):
-        pass
-
     def feed_forward(self, X):
         # make sure the dimensions are (2, n_cols)
         assert X.ndim == 2, 'X shape is {}; need (2, # of points), ' \
@@ -69,6 +61,7 @@ class NeuralNet:
 
         # combo of X weights coming into the hidden layer:
         z = self.W1.dot(X)
+        self.hidden_z = z
         assert z.shape == (self.hidden_n, n_points)
         # activate z according to the hidden layer's activation function
         self.hidden_a = self.hiddenTF.f(z)
@@ -80,33 +73,82 @@ class NeuralNet:
         # activate according to the output layer's transfer function
         self.output_a = self.outputTF.f(self.output_z)
         assert self.output_a.shape == (self.C, n_points)
+        # A is the prediction for each class:
+        # large and positive if yes, negative if no.
 
-        # predict using output's activated values
-        #predictions = self.predict(self.hidden_a)
+    def predict(self, X):
+        self.feed_forward(X)
+        return self.output_a  # also known as "predictions"
+
+    def loss_function(self, X=None, y=None):
+        pass
+
+    def gradients(self):
+        pass
+
+    def step(self):
+
+        pass
+
+    def output(self):
+        pass
+
+    #def feed_forward(self, X, Y):
+    #    Y_hat = self.predict(X)
+    #    errors = Y - Y_hat
+    #    print("Y: {}\n".format(Y))
+    #    print("hat(Y): \n{}".format(Y_hat))
+    #    self.errors = errors
+
+    def backprop(self, X, Y):
+        _, n_points = X.shape
+        assert X.shape == Y.shape, "X and Y need to have same # of points"
+        # check dim of Y matches stashed a, z dimensions.
+        self.output_delta = -np.multiply(Y - self.output_a, # error at output
+                                         self.outputTF.grad(self.output_z))
+        assert self.output_delta.shape == (self.C, n_points)
+
+        self.hidden_delta = np.multiply(self.W2.T.dot(self.output_delta),
+                                        self.hiddenTF.grad(self.hidden_z))
+        assert self.hidden_delta.shape == (self.hidden_n, n_points)
+
+        #W2_grad = self.output_delta.dot(self.output_a.T)
+        #W1_grad = self.hidden_delta.dot(self.hidden_a)
+        W2_grad = self.output_delta.dot(self.hidden_a.T)
+        W1_grad = self.hidden_delta.dot(X.T)
+
+        return W2_grad, W1_grad
+
+    def update_weights(self, W2_grad, W1_grad, n_pts):
+        # TODO: some eta decay strategy.
+        self.W2 += - self.eta*W2_grad
+        self.W1 += - self.eta*W1_grad
+
+    def run(self, epochs):
+        # should *not* be written assuming it will only be called once
+        # TODO: shuffle X, Y
+        for epoch in range(epochs + 1):
+            epoch_step = 0
+            for step in range(self.N):
+                print('step {} of epoch {}'.format(epoch_step, epoch))
+                X = self.X[:, epoch_step-1:epoch_step]  # grab subset
+                Y = self.Y[:, epoch_step-1:epoch_step]
+
+                self.feed_forward(X)
+                W2_grad, W1_grad = self.backprop(X, Y)
+                self.update_weights(W2_grad, W1_grad, n_pts=X.shape[1])
+
+                epoch_step += 1
+                self.steps += 1
+                self.epochs += 1
+
+        print('Iterated {} epoch(s)'.format(epochs))
 
     def out_layer_grad(self):
         diff = Y - Y_hat  # [Y - hat{Y}]
         grad = self.outputTF.grad(self.output_z)  # f'(z^(n_l)
         # element-wise multiplication:
         return np.multiply(diff, grad)
-
-    def backprop(self, Y):
-        # check dim of Y matches stashed a, z dimensions.
-        pass
-
-    def run(self, steps):
-        # should *not* be written assuming it will only be called once
-
-        # TODO: shuffle X, Y
-        for i in range(steps):
-            X = None  # grab subset
-            Y = None  # grab subset
-            step += 1
-
-            self.feed_forward(X)
-            self.backprop(Y)
-
-        pass
 
     def predict_y_from_Y(self):
         # for a one-hot-encoded Y, predict y
