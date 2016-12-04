@@ -62,6 +62,7 @@ class NeuralNet:
         Y = np.zeros(shape=(self.C, self.N)) # columns are data points
         #Y[np.squeeze(self.y), np.arange(len(self.y))] = 1
         Y[self.y, np.arange(len(self.y))] = 1
+        assert Y.shape == (self.C, self.N)
         return Y
 
     def feed_forward(self, X):
@@ -96,7 +97,7 @@ class NeuralNet:
 
     def backprop(self, X, Y):
         _, n_points = X.shape
-        assert X.shape == Y.shape, "X and Y need to have same # of points"
+        assert X.shape[1] == Y.shape[1], "X and Y need to have same # of points"
         # check dim of Y matches stashed a, z dimensions.
         self.output_delta = -np.multiply(Y - self.output_a, # error at output
                                          self.outputTF.grad(self.output_z))
@@ -131,11 +132,12 @@ class NeuralNet:
         # should *not* be written assuming it will only be called once
         # TODO: shuffle X, Y
         for epoch in range(epochs + 1):
-            epoch_step = 0
+            epoch_step = 1
             for step in range(self.N):
                 print('step {} of epoch {}'.format(epoch_step, epoch))
                 X = self.X[:, epoch_step-1:epoch_step]  # grab subset
                 Y = self.Y[:, epoch_step-1:epoch_step]
+                assert X.shape[1] == Y.shape[1], 'size mismatch for X and Y'
 
                 self.feed_forward(X)
                 W2_grad, W1_grad = self.backprop(X, Y)
@@ -196,12 +198,14 @@ class NeuralNet:
         results_row['converged'] = self.converged
 
         # TODO: will need to loop over the points to build up predictions
-        square_loss = self.square_loss(self.Y, self.feed_forward_and_predict_Y(self.Y))
+        Y_hat = self.feed_forward_and_predict_Y(self.X)
+        square_loss = self.square_loss(self.Y, Y_hat)
+
         results_row['square loss'] = square_loss
         results_row['(square loss)/N'] = square_loss/self.N
 
         # TODO: will need to loop over the points to build up predictions
-        y = self.predict_y(self.X)
+        y = self.predict_y_from_Y(Y_hat)
         loss_01 = self.loss_01(self.y, y)
         results_row['0/1 loss'] = loss_01
         results_row['(0/1 loss)/N'] = loss_01/self.N
@@ -218,11 +222,14 @@ class NeuralNet:
         last_losses = self.results.tail(2)['square loss'].reset_index(drop=True)
         old_square_loss = last_losses[0]
         square_loss = last_losses[1]
-        difference = old_square_loss - square_loss
-        if difference > 0:
+        improvement = old_square_loss - square_loss
+        if improvement < 0:
             print("warning: square loss increased from {} to {}".format(
                 old_square_loss, square_loss))
-        if difference < self.convergence_delta:
+            raise NeuralNetException("square loss grew to {}".format(square_loss))
+        if abs(improvement)/self.N > 1000:
+            print("warning: large improvement")
+        if abs(improvement) < self.convergence_delta:
             self.converged = True
 
     def plot_ys(self, x, y_value_list, ylabel=None, df=None,
@@ -279,6 +286,13 @@ class NeuralNet:
         p = self.plot_ys(x=x, y_value_list=y_values, ylabel=y_values[0],
                          logx=False, logy=False, filepath=filepath)
         return p
+
+
+class NeuralNetException(Exception):
+    def __init__(self, message):
+        #self.message = message
+        print(message)
+
 
 
 
