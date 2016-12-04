@@ -1,6 +1,8 @@
 import math
 import numpy as np
 
+import pandas as pd
+
 from TransferFunctions import LinearTF, TanhTF, ReLuTF
 
 class NeuralNet:
@@ -12,14 +14,15 @@ class NeuralNet:
                  hiddenTF,
                  outputTF,
                  minibatch_size,
-                 eta0):
+                 eta0,
+                 summarise_frequency = 1 # steps
+                 ):
         self.X = X  # columns are data points, rows are features
         self.y = y
         self.d, self.N = X.shape
         self.C = np.unique(y).shape[0]
         self.Y = self.y_to_Y()
         assert self.Y.shape == (self.C, self.N)
-
 
         self.hiddenTF = hiddenTF(n_in = self.d, n_nodes=hidden_nodes)
         self.hidden_n = hidden_nodes
@@ -42,6 +45,9 @@ class NeuralNet:
         self.eta = eta0
         self.steps = 0
         self.epochs = 0
+        self.summarise_frequency = summarise_frequency
+
+        self.results = pd.DataFrame()
 
     def y_to_Y(self):
         '''
@@ -128,7 +134,7 @@ class NeuralNet:
     def run(self, epochs):
         print("loss before: \n")
         predictions = self.predict(self.X)
-        print(self.loss(predictions, self.Y))
+        print(self.square_loss(predictions, self.Y))
 
         # should *not* be written assuming it will only be called once
         # TODO: shuffle X, Y
@@ -143,6 +149,9 @@ class NeuralNet:
                 W2_grad, W1_grad = self.backprop(X, Y)
                 self.update_weights(W2_grad, W1_grad, n_pts=X.shape[1])
 
+                if self.steps%self.summarise_frequency == 0:
+                    self.summarise()
+
                 epoch_step += 1
                 self.steps += 1
                 self.epochs += 1
@@ -151,19 +160,9 @@ class NeuralNet:
 
         print("loss after: \n")
         predictions = self.predict(self.X)
-        print(self.loss(predictions, self.Y))
+        print(self.square_loss(predictions, self.Y))
 
-    #def out_layer_grad(self):
-    #    diff = Y - Y_hat  # [Y - hat{Y}]
-    #    grad = self.outputTF.grad(self.output_z)  # f'(z^(n_l)
-    #    # element-wise multiplication:
-    #    return np.multiply(diff, grad)
-
-    def predict_y_from_Y(self):
-        # for a one-hot-encoded Y, predict y
-        pass
-
-    def loss(self, Y_predicted, Y_truth):
+    def square_loss(self, Y_predicted, Y_truth):
         # given y, and hat{y}, how many are wrong?
         assert Y_predicted.shape == Y_truth.shape, 'shapes unequal'
         n_pts = Y_truth.shape[1]
@@ -178,4 +177,28 @@ class NeuralNet:
         assert y_predicted.shape == y_truth.shape, 'shapes unequal'
         n_pts = y_truth.shape[1]
         return n_pts - np.equal(y_predicted, y_truth).sum()
+
+    def predict_y_from_Y(self):
+        # for a one-hot-encoded Y, predict y
+        pass
+
+    def summarise(self):
+        results_row = {}
+
+        results_row['epoch'] = self.epochs
+        results_row['step'] = self.steps
+
+        # TODO: will need to loop over the points to build up predictions
+        square_loss = self.square_loss(self.Y, self.predict(self.Y))
+        results_row['square loss'] = square_loss
+        results_row['(square loss)/N'] = square_loss/self.N
+
+        # TODO: will need to loop over the points to build up predictions
+        loss_01 = self.loss_01(self.Y, self.predict(self.X))
+        results_row['0/1 loss'] = loss_01
+        results_row['(0/1 loss)/N'] = loss_01/self.N
+
+        results_row = {k:[v] for k, v in results_row.items()}
+        self.results = pd.concat([self.results, pd.DataFrame(results_row)])
+
 
