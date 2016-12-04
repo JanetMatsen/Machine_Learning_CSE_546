@@ -16,7 +16,8 @@ class NeuralNet:
                  outputTF,
                  minibatch_size,
                  eta0,
-                 summarise_frequency = 1 # steps
+                 summarise_frequency = 1, # steps
+                 convergence_delta = 0.01
                  ):
         self.X = X  # columns are data points, rows are features
         self.y = y
@@ -46,6 +47,8 @@ class NeuralNet:
         self.eta = eta0
         self.steps = 0
         self.epochs = 0
+        self.convergence_delta = convergence_delta
+        self.converged = False
         self.summarise_frequency = summarise_frequency
 
         self.results = pd.DataFrame()
@@ -116,8 +119,13 @@ class NeuralNet:
         self.W1 += - self.eta*W1_grad
 
     def run(self, epochs):
-        print("loss before: \n")
+        # turn off convergence so it will run:
+        if self.converged:
+            print("setting self.converged to False for re-run")
+            self.converged = False
+
         predictions = self.feed_forward_and_predict_Y(self.X)
+        print("loss before:")
         print(self.square_loss(predictions, self.Y))
 
         # should *not* be written assuming it will only be called once
@@ -135,6 +143,12 @@ class NeuralNet:
 
                 if self.steps%self.summarise_frequency == 0:
                     self.summarise()
+                    # check if it's time to exit the loop
+                    if self.results.shape[0] >= 2:
+                        self.test_convergence()
+                    if self.converged:
+                        print('model converged for eta = {}'.format(self.eta))
+                        return
 
                 epoch_step += 1
                 self.steps += 1
@@ -179,6 +193,7 @@ class NeuralNet:
         results_row['step'] = self.steps
         results_row['eta'] = self.eta
         results_row['eta0'] = self.eta0
+        results_row['converged'] = self.converged
 
         # TODO: will need to loop over the points to build up predictions
         square_loss = self.square_loss(self.Y, self.feed_forward_and_predict_Y(self.Y))
@@ -194,6 +209,21 @@ class NeuralNet:
         results_row = {k:[v] for k, v in results_row.items()}
         self.results = pd.concat([self.results, pd.DataFrame(results_row)])
 
+    def test_convergence(self):
+        """
+        Test convergence using the last values in the Pandas summary
+        """
+        if self.results.shape[0] < 2:
+            pass
+        last_losses = self.results.tail(2)['square loss'].reset_index(drop=True)
+        old_square_loss = last_losses[0]
+        square_loss = last_losses[1]
+        difference = old_square_loss - square_loss
+        if difference > 0:
+            print("warning: square loss increased from {} to {}".format(
+                old_square_loss, square_loss))
+        if difference < self.convergence_delta:
+            self.converged = True
 
     def plot_ys(self, x, y_value_list, ylabel=None, df=None,
                 logx=True, logy=False, y0_line = False,
