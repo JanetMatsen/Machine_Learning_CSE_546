@@ -123,7 +123,7 @@ class NeuralNet:
 
         return W1_grad, W2_grad
 
-    def numerical_derivative(self, W_name, i,j):
+    def numerical_derivative_of_element(self, W_name, i,j):
         """
         Compute the numerical derivative for a single element of a single
         weight matrix.
@@ -132,6 +132,7 @@ class NeuralNet:
         :param j: the column to get the derivative of
         :return: the numerical derivative for one weight element.
         """
+        # TODO: doesn't scale to larger data sets.  E.g. 60k data points.
         n = self.copy()
 
         W = getattr(n, W_name)
@@ -143,6 +144,21 @@ class NeuralNet:
             return n.square_loss(n.Y, Y_hat)
 
         return sp.misc.derivative(f, x0)/2
+
+    def numerical_derivatives(self):
+        def derivative(W_name):
+            W = getattr(self, W_name)
+            d = np.zeros(shape = W.shape)
+            (rownum, colnum) = W.shape
+            for r in range(rownum):
+                for c in range(colnum):
+                    d[r, c] = \
+                        self.numerical_derivative_of_element(W_name, r, c)
+            return d
+
+        W1_deriv = derivative('W1')
+        W2_deriv = derivative('W2')
+        return W1_deriv, W2_deriv
 
     def update_weights(self, W1_grad, W2_grad, n_pts):
         # TODO: some eta decay strategy.
@@ -280,7 +296,6 @@ class NeuralNet:
         W2_row = prep_df(self.W2)
         self.W1_tracking = pd.concat([self.W1_tracking, W1_row])
         self.W2_tracking = pd.concat([self.W2_tracking, W2_row])
-
 
     def test_convergence(self):
         """
