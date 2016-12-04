@@ -1,6 +1,8 @@
+import copy
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy as sp
 
 import pandas as pd
 
@@ -56,6 +58,12 @@ class NeuralNet:
         self.W1_tracking = pd.DataFrame()
         self.W2_tracking = pd.DataFrame()
 
+    def copy(self):
+        # TODO: not deep for some purposes.
+        model = copy.deepcopy(self)
+        # TODO: clear out DF?
+        return model
+
     def y_to_Y(self):
         '''
         One-hot encoding of Y.
@@ -110,22 +118,41 @@ class NeuralNet:
                                         self.hiddenTF.grad(self.hidden_z))
         assert self.hidden_delta.shape == (self.hidden_n, n_points)
 
-        #W2_grad = self.output_delta.dot(self.output_a.T)
-        #W1_grad = self.hidden_delta.dot(self.hidden_a)
-        W2_grad = self.output_delta.dot(self.hidden_a.T)
         W1_grad = self.hidden_delta.dot(X.T)
+        W2_grad = self.output_delta.dot(self.hidden_a.T)
 
-        return W2_grad, W1_grad
+        return W1_grad, W2_grad
 
-    def update_weights(self, W2_grad, W1_grad, n_pts):
+    def numerical_derivative(self, W_name, i,j):
+        """
+        Compute the numerical derivative for a single element of a single
+        weight matrix.
+        :param W_name: which weight matrix to alter: 'W1' or 'W2'
+        :param i: the row of the element to get the derivative of
+        :param j: the column to get the derivative of
+        :return: the numerical derivative for one weight element.
+        """
+        n = self.copy()
+
+        W = getattr(n, W_name)
+        x0 = W[i,j]
+
+        def f(x):
+            W[i,j] = x
+            Y_hat = n.feed_forward_and_predict_Y(n.X)
+            return n.square_loss(n.Y, Y_hat)
+
+        return sp.misc.derivative(f, x0)/2
+
+    def update_weights(self, W1_grad, W2_grad, n_pts):
         # TODO: some eta decay strategy.
-        self.W2 += - (self.eta/n_pts)*W2_grad
         self.W1 += - (self.eta/n_pts)*W1_grad
+        self.W2 += - (self.eta/n_pts)*W2_grad
 
     def step(self, X, Y):
         self.feed_forward(X)
-        W2_grad, W1_grad = self.backprop(X, Y)
-        self.update_weights(W2_grad, W1_grad, n_pts=X.shape[1])
+        W1_grad, W2_grad = self.backprop(X, Y)
+        self.update_weights(W1_grad, W2_grad, n_pts=X.shape[1])
 
     def run(self, epochs):
         # turn off convergence so it will run:
