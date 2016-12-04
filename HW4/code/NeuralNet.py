@@ -361,14 +361,13 @@ class NeuralNet:
     #    return fig
 
     def plot_weight_evolution(self):
-        fig1, ax1 = plt.subplots(1, 1, figsize=(3.5, 3.5))
-        self.W1_tracking.set_index('steps').plot(ax=ax1, figsize=(3,3))
-        #p1.set_title("W1")
+        fig, ax = plt.subplots(1, 2, figsize=(10, 3.5))
+        self.W1_tracking.set_index('steps').plot(ax=ax[0])#, figsize=(3,3))
+        ax[0].set_title("W1")
 
-        fig2, ax2 = plt.subplots(1, 1, figsize=(3.5, 3.5))
-        self.W2_tracking.set_index('steps').plot(ax=ax2, figsize=(3,3))
-        #p2.set_title("W2")
-        return fig1, fig2
+        self.W2_tracking.set_index('steps').plot(ax=ax[1])#, figsize=(3,3))
+        ax[1].set_title("W2")
+        return fig
 
 
 class NeuralNetException(Exception):
