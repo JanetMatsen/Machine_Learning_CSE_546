@@ -84,29 +84,12 @@ class NeuralNet:
         # A is the prediction for each class:
         # large and positive if yes, negative if no.
 
-    def predict(self, X):
+    def feed_forward_and_predict_Y(self, X):
         self.feed_forward(X)
         return self.output_a  # also known as "predictions"
 
-    def loss_function(self, X=None, y=None):
-        pass
-
-    def gradients(self):
-        pass
-
     def step(self):
-
         pass
-
-    def output(self):
-        pass
-
-    #def feed_forward(self, X, Y):
-    #    Y_hat = self.predict(X)
-    #    errors = Y - Y_hat
-    #    print("Y: {}\n".format(Y))
-    #    print("hat(Y): \n{}".format(Y_hat))
-    #    self.errors = errors
 
     def backprop(self, X, Y):
         _, n_points = X.shape
@@ -134,7 +117,7 @@ class NeuralNet:
 
     def run(self, epochs):
         print("loss before: \n")
-        predictions = self.predict(self.X)
+        predictions = self.feed_forward_and_predict_Y(self.X)
         print(self.square_loss(predictions, self.Y))
 
         # should *not* be written assuming it will only be called once
@@ -160,7 +143,7 @@ class NeuralNet:
         print('Iterated {} epoch(s)'.format(epochs))
 
         print("loss after: \n")
-        predictions = self.predict(self.X)
+        predictions = self.feed_forward_and_predict_Y(self.X)
         print(self.square_loss(predictions, self.Y))
 
     def square_loss(self, Y_predicted, Y_truth):
@@ -176,12 +159,18 @@ class NeuralNet:
     def loss_01(self, y_predicted, y_truth):
         # given y, and hat{y}, how many are wrong?
         assert y_predicted.shape == y_truth.shape, 'shapes unequal'
-        n_pts = y_truth.shape[1]
+        n_pts = len(y_truth)
         return n_pts - np.equal(y_predicted, y_truth).sum()
 
-    def predict_y_from_Y(self):
+    def predict_y_from_Y(self, Y):
         # for a one-hot-encoded Y, predict y
-        pass
+        y = np.argmax(Y, axis=0)
+        return y
+
+    def predict_y(self, X):
+        Y_hat = self.feed_forward_and_predict_Y(X)
+        y = self.predict_y_from_Y(Y_hat)
+        return y
 
     def summarise(self):
         results_row = {}
@@ -192,12 +181,13 @@ class NeuralNet:
         results_row['eta0'] = self.eta0
 
         # TODO: will need to loop over the points to build up predictions
-        square_loss = self.square_loss(self.Y, self.predict(self.Y))
+        square_loss = self.square_loss(self.Y, self.feed_forward_and_predict_Y(self.Y))
         results_row['square loss'] = square_loss
         results_row['(square loss)/N'] = square_loss/self.N
 
         # TODO: will need to loop over the points to build up predictions
-        loss_01 = self.loss_01(self.Y, self.predict(self.X))
+        y = self.predict_y(self.X)
+        loss_01 = self.loss_01(self.y, y)
         results_row['0/1 loss'] = loss_01
         results_row['(0/1 loss)/N'] = loss_01/self.N
 
