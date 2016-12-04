@@ -432,10 +432,17 @@ class NeuralNet:
     def plot_weight_evolution(self):
         fig, ax = plt.subplots(1, 2, figsize=(10, 3.5))
         self.W1_tracking.set_index('steps').plot(ax=ax[0])#, figsize=(3,3))
-        ax[0].set_title("W1")
+        ax[0].set_title("W1 element weights")
 
         self.W2_tracking.set_index('steps').plot(ax=ax[1])#, figsize=(3,3))
-        ax[1].set_title("W2")
+        ax[1].set_title("W2 element weights")
+
+        # remove the legend if > 10 points
+        if self.W1_tracking.shape[1] > 10:
+            ax[0].legend_.remove()
+        if self.W2_tracking.shape[1] > 10:
+            ax[1].legend_.remove()
+
         return fig
 
 
