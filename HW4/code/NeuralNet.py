@@ -1,4 +1,5 @@
 import math
+import matplotlib.pyplot as plt
 import numpy as np
 
 import pandas as pd
@@ -187,6 +188,8 @@ class NeuralNet:
 
         results_row['epoch'] = self.epochs
         results_row['step'] = self.steps
+        results_row['eta'] = self.eta
+        results_row['eta0'] = self.eta0
 
         # TODO: will need to loop over the points to build up predictions
         square_loss = self.square_loss(self.Y, self.predict(self.Y))
@@ -200,5 +203,62 @@ class NeuralNet:
 
         results_row = {k:[v] for k, v in results_row.items()}
         self.results = pd.concat([self.results, pd.DataFrame(results_row)])
+
+
+    def plot_ys(self, x, y_value_list, ylabel=None, df=None,
+                logx=True, logy=False, y0_line = False,
+                colors=None, figsize=(4, 3), filepath=None):
+        if df is None:
+            assert self.results is not None
+            df = self.results
+
+        if logx and not logy:
+            plot_fun = plt.semilogx
+        elif logy and not logx:
+            plot_fun = plt.semilogy
+        elif logx and logy:
+            plot_fun = plt.loglog
+        else:
+            plot_fun = plt.plot
+
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        if colors is None:
+            colors = ['#bcbddc', '#756bb1', '#74c476', '#006d2c']
+
+        ys_plotted = 0
+        for y in y_value_list:
+            plot_fun(df[x], df[y], linestyle='--',
+                         marker='o', color=colors[ys_plotted])
+            ys_plotted += 1
+
+        if y0_line:
+            ax.axhline(y=0, color='k')
+
+        plt.gca().set_ylim(bottom=0)
+
+        plt.legend(loc = 'best')
+        plt.xlabel(x)
+        if ylabel:
+            plt.ylabel(ylabel)
+        else:
+            pass
+        if filepath is not None:
+            fig.savefig(filepath) # + '.pdf')
+        return fig
+
+    def plot_square_loss(self, x='epoch', y_values=['(square loss)/N'],
+                         filepath=None):
+
+        p = self.plot_ys(x=x, y_value_list=y_values, ylabel=y_values[0],
+                         logx=False, logy=False, filepath=filepath)
+        return p
+
+    def plot_01_loss(self, x='epoch', y_values=['(0/1 loss)/N'],
+                         filepath=None):
+
+        p = self.plot_ys(x=x, y_value_list=y_values, ylabel=y_values[0],
+                         logx=False, logy=False, filepath=filepath)
+        return p
+
 
 
