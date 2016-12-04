@@ -32,7 +32,8 @@ class NeuralNet:
         self.hiddenTF = hiddenTF(n_in = self.d, n_nodes=hidden_nodes)
         self.hidden_n = hidden_nodes
         # Weights to multiply incoming x by; feeds the hidden layer
-        self.W1 = self.hiddenTF.initialize_weights()  # Shape = (# hidden nodes, self.d)
+        # TODO: randomly sample X once I am working with bigger data
+        self.W1 = self.hiddenTF.initialize_W1(self)  # Shape = (# hidden nodes, self.d)
         #self.hidden_z = None # W.dot(X)  (minibatch sized)
         self.hidden_a = None # transfer_fun(W.dot(X)) # used in feed forward, minibatch sized
         self.hidden_delta = None
@@ -40,7 +41,8 @@ class NeuralNet:
         self.outputTF = outputTF(n_in = hidden_nodes, n_nodes = self.C)
         # Weights between the hidden layer and the output layer.
         # Shape = (self.d, n_above = self.C)
-        self.W2 = self.outputTF.initialize_weights()
+        # TODO: randomly sample X once I am working with bigger data
+        self.W2 = self.outputTF.initialize_W2(self)
         self.output_z = None # W.dot(a_below) # used in back prop (minibatch sized)
         self.Y_hat = None # transfer_fun(W.dot(a_below)) # used in back prop, minibatch sized
         self.output_delta = None

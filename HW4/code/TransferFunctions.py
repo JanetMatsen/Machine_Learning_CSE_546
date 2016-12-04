@@ -15,8 +15,12 @@ class LinearTF:
     def grad(z):
         return 1
 
-    def initialize_weights(self):
+    def initialize_W1(self, neural_net):
+        # note: X is not used
         return np.random.normal(0, 1, size=(self.n_nodes, self.n_in))
+
+    def initialize_W2(self, neural_net):
+        return self.initialize_W1(neural_net)
 
 
 class TanhTF:
@@ -24,6 +28,7 @@ class TanhTF:
         self.name = 'tanh'
         self.n_in = n_in
         self.n_nodes = n_nodes
+        self.W_shape = (self.n_nodes, self.n_in)
         pass
 
     @staticmethod
@@ -39,9 +44,18 @@ class TanhTF:
         :param x: z
         :return: derivative of transfer function at z
         """
-        # TODO: vectorize
         d, n = z.shape
         return np.ones(shape=(d,n)) - np.square(self.f(z))
+
+    def initialize_W1(self, neural_net):
+        X = neural_net.X
+        # TODO: shoudl we
+        norm = np.linalg.norm(X)
+        norm_squared =  np.multiply(norm, norm)
+        return np.random.normal(0, 1/norm_squared, size = self.W_shape)
+
+    def initialize_W2(self, neural_net):
+        return np.random.normal(0, 1/self.n_nodes**2, size=self.W_shape)
 
 
 class ReLuTF:
@@ -64,3 +78,6 @@ class ReLuTF:
             return 0
         else:
             return 1
+
+    def initialize_weights(self, X):
+        raise NotImplementedError
