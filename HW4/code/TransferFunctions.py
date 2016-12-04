@@ -49,7 +49,6 @@ class TanhTF:
 
     def initialize_W1(self, neural_net):
         X = neural_net.X
-        # TODO: shoudl we
         norm = np.linalg.norm(X)
         norm_squared =  np.multiply(norm, norm)
         return np.random.normal(0, 1/norm_squared, size = self.W_shape)
