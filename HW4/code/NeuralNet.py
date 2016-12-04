@@ -156,7 +156,7 @@ class NeuralNet:
             Y_hat = n.feed_forward_and_predict_Y(n.X)
             return n.square_loss(n.Y, Y_hat)
 
-        return sp.misc.derivative(f, x0)/2
+        return sp.misc.derivative(f, x0, 0.01)/2
 
     def numerical_derivatives(self, rounded=True):
         def derivative(W_name):
