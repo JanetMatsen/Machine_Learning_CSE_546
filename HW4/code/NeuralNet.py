@@ -46,12 +46,15 @@ class NeuralNet:
         self.eta0 = eta0
         self.eta = eta0
         self.steps = 0
+        self.points_stepped = 0
         self.epochs = 0
         self.convergence_delta = convergence_delta
         self.converged = False
         self.summarise_frequency = summarise_frequency
 
         self.results = pd.DataFrame()
+        self.W1_tracking = pd.DataFrame()
+        self.W2_tracking = pd.DataFrame()
 
     def y_to_Y(self):
         '''
@@ -92,8 +95,10 @@ class NeuralNet:
         self.feed_forward(X)
         return self.output_a  # also known as "predictions"
 
-    def step(self):
-        pass
+    def step(self, X, Y):
+        self.feed_forward(X)
+        W2_grad, W1_grad = self.backprop(X, Y)
+        self.update_weights(W2_grad, W1_grad, n_pts=X.shape[1])
 
     def backprop(self, X, Y):
         _, n_points = X.shape
@@ -133,18 +138,23 @@ class NeuralNet:
         # TODO: shuffle X, Y
         for epoch in range(epochs + 1):
             epoch_step = 1
-            for step in range(self.N):
-                print('step {} of epoch {}'.format(epoch_step, epoch))
-                X = self.X[:, epoch_step-1:epoch_step]  # grab subset
-                Y = self.Y[:, epoch_step-1:epoch_step]
+            num_pts = 0
+            while num_pts < self.N:
+                index_start = num_pts
+                index_stop = num_pts + self.minibatch_size
+                X = self.X[:, index_start:index_stop]  # grab subset
+                Y = self.Y[:, index_start:index_stop]
                 assert X.shape[1] == Y.shape[1], 'size mismatch for X and Y'
+                num_pts += X.shape[1]
+                self.points_stepped += X.shape[1]
+                print('step {} of epoch {}'.format(epoch_step, epoch))
 
-                self.feed_forward(X)
-                W2_grad, W1_grad = self.backprop(X, Y)
-                self.update_weights(W2_grad, W1_grad, n_pts=X.shape[1])
+                self.step(X, Y)
 
-                if self.steps%self.summarise_frequency == 0:
+                # check status sometimes.
+                if self.points_stepped%self.summarise_frequency == 0:
                     self.summarise()
+                    self.track_weights()
                     # check if it's time to exit the loop
                     if self.results.shape[0] >= 2:
                         self.test_convergence()
@@ -193,6 +203,7 @@ class NeuralNet:
 
         results_row['epoch'] = self.epochs
         results_row['step'] = self.steps
+        results_row['points stepped'] = self.points_stepped
         results_row['eta'] = self.eta
         results_row['eta0'] = self.eta0
         results_row['converged'] = self.converged
@@ -212,6 +223,34 @@ class NeuralNet:
 
         results_row = {k:[v] for k, v in results_row.items()}
         self.results = pd.concat([self.results, pd.DataFrame(results_row)])
+
+    def track_weights(self):
+
+        def prep_colnames(W):
+            ravel_indices = []
+            (rownum, colnum) = W.shape
+            for r in range(rownum):
+                for c in range(colnum):
+                    ravel_indices.append((r, c))
+            return ravel_indices
+
+        def prep_df(W):
+            colnames = prep_colnames(W)
+            W = np.ravel(W)
+            row = {}
+            for c, w in zip(colnames, W):
+                row[c] = w
+            #row['epochs'] = self.epochs
+            row['steps'] = self.steps
+            #row['points stepped'] = self.points_stepped
+            row = {k:[v] for k, v in row.items()}
+            return pd.DataFrame(row)
+
+        W1_row = prep_df(self.W1)
+        W2_row = prep_df(self.W2)
+        self.W1_tracking = pd.concat([self.W1_tracking, W1_row])
+        self.W2_tracking = pd.concat([self.W2_tracking, W2_row])
+
 
     def test_convergence(self):
         """
@@ -286,6 +325,50 @@ class NeuralNet:
         p = self.plot_ys(x=x, y_value_list=y_values, ylabel=y_values[0],
                          logx=False, logy=False, filepath=filepath)
         return p
+
+    #def plot_2_subplots(self, x1, y1, x2, y2, df1=None, df2=None,
+    #                    pandas=True, title=None):
+    #    if df1 is None:
+    #        df1 = self.results
+    #    if df2 is None:
+    #        df2 = self.results
+
+    #    fig, axs = plt.subplots(2, 1, figsize=(5, 4))
+    #    colors = ['c','b']
+    #    if pandas:
+    #        y1_range = (0, max(self.results[y1])*1.05)
+    #        y2_range = (0, max(self.results[y2])*1.05)
+    #        df1.plot(kind='scatter', ax=axs[0], x=x1, y=y1,
+    #                          color=colors[0], logx=True, ylim=y1_range)
+    #        df2.plot(kind='scatter', ax=axs[1], x=x2, y=y2,
+    #                          color=colors[1], logx=True, ylim=y2_range)
+    #    else: # use matplotlib
+    #        x1 = df1[x1]
+    #        y1 = df1[y1]
+    #        x2 = df1[x2]
+    #        y2 = df2[y2]
+    #        axs[0].plot(x1, y1, linestyle='--', marker='o', color=colors[0])
+    #        # doing loglog for eta.
+    #        axs[1].plot(x2, y2, linestyle='--', marker='o', color=colors[1])
+
+    #    axs[0].axhline(y=0, color='k')
+    #    # fill 2nd plot
+    #    axs[1].axhline(y=0, color='k')
+
+    #    if title is not None:
+    #        plt.title(title)
+    #    plt.tight_layout()
+    #    return fig
+
+    def plot_weight_evolution(self):
+        fig1, ax1 = plt.subplots(1, 1, figsize=(3.5, 3.5))
+        self.W1_tracking.set_index('steps').plot(ax=ax1, figsize=(3,3))
+        #p1.set_title("W1")
+
+        fig2, ax2 = plt.subplots(1, 1, figsize=(3.5, 3.5))
+        self.W2_tracking.set_index('steps').plot(ax=ax2, figsize=(3,3))
+        #p2.set_title("W2")
+        return fig1, fig2
 
 
 class NeuralNetException(Exception):
