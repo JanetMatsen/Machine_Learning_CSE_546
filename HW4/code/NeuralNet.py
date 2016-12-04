@@ -39,7 +39,7 @@ class NeuralNet:
         # Shape = (self.d, n_above = self.C)
         self.W2 = self.outputTF.initialize_weights()
         self.output_z = None # W.dot(a_below) # used in back prop (minibatch sized)
-        self.output_a = None # transfer_fun(W.dot(a_below)) # used in back prop, minibatch sized
+        self.Y_hat = None # transfer_fun(W.dot(a_below)) # used in back prop, minibatch sized
         self.output_delta = None
 
         self.minibatch_size = minibatch_size
@@ -86,25 +86,23 @@ class NeuralNet:
         self.output_z = self.W2.dot(self.hidden_a)
         assert self.output_z.shape == (self.C, n_points)
         # activate according to the output layer's transfer function
-        self.output_a = self.outputTF.f(self.output_z)
-        assert self.output_a.shape == (self.C, n_points)
+        self.Y_hat = self.outputTF.f(self.output_z)
+        assert self.Y_hat.shape == (self.C, n_points)
         # A is the prediction for each class:
         # large and positive if yes, negative if no.
 
     def feed_forward_and_predict_Y(self, X):
         self.feed_forward(X)
-        return self.output_a  # also known as "predictions"
+        return self.Y_hat  # also known as "predictions"
 
-    def step(self, X, Y):
-        self.feed_forward(X)
-        W2_grad, W1_grad = self.backprop(X, Y)
-        self.update_weights(W2_grad, W1_grad, n_pts=X.shape[1])
-
-    def backprop(self, X, Y):
-        _, n_points = X.shape
+    def backprop(self, X, Y, debug=False):
+        _, n_points = X.shape  # for checking dimensionality
         assert X.shape[1] == Y.shape[1], "X and Y need to have same # of points"
         # check dim of Y matches stashed a, z dimensions.
-        self.output_delta = -np.multiply(Y - self.output_a, # error at output
+
+        if debug:
+            import pdb; pdb.set_trace()
+        self.output_delta = -np.multiply(Y - self.Y_hat,  # error at output
                                          self.outputTF.grad(self.output_z))
         assert self.output_delta.shape == (self.C, n_points)
 
@@ -121,8 +119,13 @@ class NeuralNet:
 
     def update_weights(self, W2_grad, W1_grad, n_pts):
         # TODO: some eta decay strategy.
-        self.W2 += - self.eta*W2_grad
-        self.W1 += - self.eta*W1_grad
+        self.W2 += - (self.eta/n_pts)*W2_grad
+        self.W1 += - (self.eta/n_pts)*W1_grad
+
+    def step(self, X, Y):
+        self.feed_forward(X)
+        W2_grad, W1_grad = self.backprop(X, Y)
+        self.update_weights(W2_grad, W1_grad, n_pts=X.shape[1])
 
     def run(self, epochs):
         # turn off convergence so it will run:
