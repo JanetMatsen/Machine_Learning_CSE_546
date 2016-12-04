@@ -13,7 +13,7 @@ class LinearTF:
 
     @staticmethod
     def grad(z):
-        return z
+        return 1
 
     def initialize_weights(self):
         return np.random.normal(0, 1, size=(self.n_nodes, self.n_in))
