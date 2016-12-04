@@ -19,7 +19,8 @@ class NeuralNet:
                  minibatch_size,
                  eta0,
                  summarise_frequency = 1, # steps
-                 convergence_delta = 0.01
+                 convergence_delta = 0.01,
+                 verbose=False
                  ):
         self.X = X  # columns are data points, rows are features
         self.y = y
@@ -57,6 +58,7 @@ class NeuralNet:
         self.results = pd.DataFrame()
         self.W1_tracking = pd.DataFrame()
         self.W2_tracking = pd.DataFrame()
+        self.verbose = verbose
 
     def copy(self):
         # TODO: not deep for some purposes.
@@ -123,6 +125,15 @@ class NeuralNet:
 
         return W1_grad, W2_grad
 
+    def gradients(self, X, Y, rounded=False):
+        self.feed_forward(X)
+        W1_grad, W2_grad = self.backprop(X, Y)
+
+        if rounded:
+            return np.around(W1_grad,2), np.around(W2_grad, 2)
+        else:
+            return W1_grad, W2_grad
+
     def numerical_derivative_of_element(self, W_name, i,j):
         """
         Compute the numerical derivative for a single element of a single
@@ -145,7 +156,7 @@ class NeuralNet:
 
         return sp.misc.derivative(f, x0)/2
 
-    def numerical_derivatives(self):
+    def numerical_derivatives(self, rounded=True):
         def derivative(W_name):
             W = getattr(self, W_name)
             d = np.zeros(shape = W.shape)
@@ -158,7 +169,10 @@ class NeuralNet:
 
         W1_deriv = derivative('W1')
         W2_deriv = derivative('W2')
-        return W1_deriv, W2_deriv
+        if rounded:
+            return np.around(W1_deriv, 2), np.around(W2_deriv,2)
+        else:
+            return W1_deriv, W2_deriv
 
     def update_weights(self, W1_grad, W2_grad, n_pts):
         # TODO: some eta decay strategy.
@@ -166,8 +180,7 @@ class NeuralNet:
         self.W2 += - (self.eta/n_pts)*W2_grad
 
     def step(self, X, Y):
-        self.feed_forward(X)
-        W1_grad, W2_grad = self.backprop(X, Y)
+        W1_grad, W2_grad = self.gradients(X, Y)
         self.update_weights(W1_grad, W2_grad, n_pts=X.shape[1])
 
     def run(self, epochs):
@@ -307,12 +320,21 @@ class NeuralNet:
         old_square_loss = last_losses[0]
         square_loss = last_losses[1]
         improvement = old_square_loss - square_loss
+        percent_improvement = (improvement)/old_square_loss*100
+
+        if self.verbose:
+            print('Loss improvement: {} - {} --> {}'.format(
+                old_square_loss, square_loss, improvement))
         if improvement < 0:
-            print("warning: square loss increased from {} to {}".format(
-                old_square_loss, square_loss))
-            raise NeuralNetException("square loss grew to {}".format(square_loss))
+            print("warning: square loss increased "
+                  "{0:.2f}%;".format( -percent_improvement) +
+                  " {} --> {}".format(old_square_loss, square_loss))
+            if percent_improvement < -10:
+                raise NeuralNetException("square loss grew to {0:.2f}"
+                                         "".format(square_loss))
+
         if abs(improvement)/self.N > 1000:
-            print("warning: large improvement")
+            print("large improvement: {}%".format(percent_improvement))
         if abs(improvement) < self.convergence_delta:
             self.converged = True
 
