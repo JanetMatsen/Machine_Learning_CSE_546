@@ -395,40 +395,6 @@ class NeuralNet:
                          logx=False, logy=False, filepath=filepath)
         return p
 
-    #def plot_2_subplots(self, x1, y1, x2, y2, df1=None, df2=None,
-    #                    pandas=True, title=None):
-    #    if df1 is None:
-    #        df1 = self.results
-    #    if df2 is None:
-    #        df2 = self.results
-
-    #    fig, axs = plt.subplots(2, 1, figsize=(5, 4))
-    #    colors = ['c','b']
-    #    if pandas:
-    #        y1_range = (0, max(self.results[y1])*1.05)
-    #        y2_range = (0, max(self.results[y2])*1.05)
-    #        df1.plot(kind='scatter', ax=axs[0], x=x1, y=y1,
-    #                          color=colors[0], logx=True, ylim=y1_range)
-    #        df2.plot(kind='scatter', ax=axs[1], x=x2, y=y2,
-    #                          color=colors[1], logx=True, ylim=y2_range)
-    #    else: # use matplotlib
-    #        x1 = df1[x1]
-    #        y1 = df1[y1]
-    #        x2 = df1[x2]
-    #        y2 = df2[y2]
-    #        axs[0].plot(x1, y1, linestyle='--', marker='o', color=colors[0])
-    #        # doing loglog for eta.
-    #        axs[1].plot(x2, y2, linestyle='--', marker='o', color=colors[1])
-
-    #    axs[0].axhline(y=0, color='k')
-    #    # fill 2nd plot
-    #    axs[1].axhline(y=0, color='k')
-
-    #    if title is not None:
-    #        plt.title(title)
-    #    plt.tight_layout()
-    #    return fig
-
     def plot_weight_evolution(self):
         fig, ax = plt.subplots(1, 2, figsize=(10, 3.5))
         self.W1_tracking.set_index('steps').plot(ax=ax[0])#, figsize=(3,3))
