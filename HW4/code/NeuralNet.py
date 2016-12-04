@@ -20,7 +20,10 @@ class NeuralNet:
                  eta0,
                  summarise_frequency = 1, # steps
                  convergence_delta = 0.01,
-                 verbose=False
+                 verbose=False,
+                 X_test = None,
+                 y_test = None,
+                 monitor_test_data = True,
                  ):
         self.X = X  # columns are data points, rows are features
         self.y = y
@@ -28,6 +31,13 @@ class NeuralNet:
         self.C = np.unique(y).shape[0]
         self.Y = self.y_to_Y()
         assert self.Y.shape == (self.C, self.N)
+
+        if X_test is not None:
+            self.X_test = X_test
+            self.y_test = y_test
+        self.monitor_test_data = monitor_test_data
+        if X_test is None or y_test is None:
+            self.monitor_test_data = False
 
         self.hiddenTF = hiddenTF(n_in = self.d, n_nodes=hidden_nodes)
         self.hidden_n = hidden_nodes
@@ -107,13 +117,11 @@ class NeuralNet:
         self.feed_forward(X)
         return self.Y_hat  # also known as "predictions"
 
-    def backprop(self, X, Y, debug=False):
+    def backprop(self, X, Y):
         _, n_points = X.shape  # for checking dimensionality
         assert X.shape[1] == Y.shape[1], "X and Y need to have same # of points"
         # check dim of Y matches stashed a, z dimensions.
 
-        if debug:
-            import pdb; pdb.set_trace()
         self.output_delta = -np.multiply(Y - self.Y_hat,  # error at output
                                          self.outputTF.grad(self.output_z))
         assert self.output_delta.shape == (self.C, n_points)
@@ -259,7 +267,7 @@ class NeuralNet:
         y = self.predict_y_from_Y(Y_hat)
         return y
 
-    def summarise(self):
+    def summary_row(self):
         results_row = {}
 
         results_row['epoch'] = self.epochs
@@ -283,7 +291,41 @@ class NeuralNet:
         results_row['(0/1 loss)/N'] = loss_01/self.N
 
         results_row = {k:[v] for k, v in results_row.items()}
-        self.results = pd.concat([self.results, pd.DataFrame(results_row)])
+        return pd.DataFrame(results_row)
+
+    def assess_test_data(self):
+        test_model = self.copy()
+        test_model.d, test_model.N = self.X_test.shape
+        test_model.X = test_model.X_test
+        test_model.y = test_model.y_test
+        test_model.Y = test_model.y_to_Y()
+        return test_model.summary_row()
+
+    def summarise(self):
+        results_row = self.summary_row()
+        if self.monitor_test_data:
+            merge_col = 'step'
+            test_results = self.assess_test_data()
+            print(test_results.columns)
+            cols_to_keep = [c for c in test_results.columns if
+                            ('loss' in c)]
+            cols_to_keep.append(merge_col)
+            test_results = test_results[cols_to_keep]
+            colnames = test_results.columns.tolist()
+            #def append_string(string, identifier, addition):
+            #    if identifier in string:
+            #        return string + addition
+            #    else:
+            #        return string
+            colnames = [c + ', testing' if 'loss' in c else c
+                        for c in colnames]
+            test_results.columns = colnames
+            # rename rows with 'loss' in them to have ' testing' at the end
+            results_row = pd.merge(results_row, test_results)
+
+            # only keep some columns
+        self.results = pd.concat([self.results, results_row])
+
 
     def track_weights(self):
 
