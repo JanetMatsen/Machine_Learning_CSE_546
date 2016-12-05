@@ -18,7 +18,7 @@ class NeuralNet:
                  outputTF,
                  minibatch_size,
                  eta0,
-                 summarise_frequency = 1, # steps
+                 summarise_frequency = None, # unit of steps
                  convergence_delta = 0.01,
                  verbose=False,
                  X_test = None,
@@ -65,7 +65,16 @@ class NeuralNet:
         self.epochs = 0
         self.convergence_delta = convergence_delta
         self.converged = False
-        self.summarise_frequency = summarise_frequency
+        if summarise_frequency is None:
+            if self.N < 100:
+                self.summarise_frequency = 1 # check every step
+            else:
+                self.summarise_frequency = int(self.N/2)
+        else:
+            self.summarise_frequency = summarise_frequency
+
+        assert self.summarise_frequency%minibatch_size == 0, \
+            "won't monitor as much as you think"
 
         self.results = pd.DataFrame()
         self.W1_tracking = pd.DataFrame()
@@ -186,12 +195,14 @@ class NeuralNet:
 
     def update_weights(self, W1_grad, W2_grad, n_pts):
         # TODO: some eta decay strategy.
+        assert n_pts > 0
         self.W1 += - (self.eta/n_pts)*W1_grad
         self.W2 += - (self.eta/n_pts)*W2_grad
 
     def step(self, X, Y):
         W1_grad, W2_grad = self.gradients(X, Y)
-        self.update_weights(W1_grad, W2_grad, n_pts=X.shape[1])
+        n_pts = X.shape[1]
+        self.update_weights(W1_grad, W2_grad, n_pts=n_pts)
 
     def run(self, epochs):
         # turn off convergence so it will run:
@@ -203,20 +214,24 @@ class NeuralNet:
         print("loss before:")
         print(self.square_loss(predictions, self.Y))
 
-        # should *not* be written assuming it will only be called once
-        # TODO: shuffle X, Y
+        # shuffle X, Y
+        X_shuffled, Y_shuffled = self.shuffle(self.X.copy(), self.Y.copy())
+        assert X_shuffled.shape == self.X.shape
+        assert Y_shuffled.shape == self.Y.shape
+
         for epoch in range(epochs + 1):
             epoch_step = 1
             num_pts = 0
             while num_pts < self.N:
                 index_start = num_pts
                 index_stop = num_pts + self.minibatch_size
-                X = self.X[:, index_start:index_stop]  # grab subset
-                Y = self.Y[:, index_start:index_stop]
+                X = X_shuffled[:, index_start:index_stop]  # grab subset
+                Y = Y_shuffled[:, index_start:index_stop]
                 assert X.shape[1] == Y.shape[1], 'size mismatch for X and Y'
                 num_pts += X.shape[1]
                 self.points_stepped += X.shape[1]
-                print('step {} of epoch {}'.format(epoch_step, epoch))
+                if self.verbose:
+                    print('step {} of epoch {}'.format(epoch_step, epoch))
 
                 self.step(X, Y)
 
@@ -233,13 +248,22 @@ class NeuralNet:
 
                 epoch_step += 1
                 self.steps += 1
-                self.epochs += 1
+                self.epochs = self.points_stepped/self.N
 
         print('Iterated {} epoch(s)'.format(epochs))
 
         print("loss after: \n")
         predictions = self.feed_forward_and_predict_Y(self.X)
         print(self.square_loss(predictions, self.Y))
+
+    @staticmethod
+    def shuffle(X, Y):
+        assert X.shape[1] == Y.shape[1]
+        shuffler = np.arange(Y.shape[1])
+        np.random.shuffle(shuffler)
+        X = X.copy()[:, shuffler]
+        Y = Y.copy()[:, shuffler]
+        return X, Y
 
     def square_loss(self, Y_predicted, Y_truth):
         # given y, and hat{y}, how many are wrong?
@@ -267,6 +291,23 @@ class NeuralNet:
         y = self.predict_y_from_Y(Y_hat)
         return y
 
+    def build_up_Y_hat(self, chunk_size = 1000):
+        n = chunk_size
+        n_done = 0
+        print("Build up hat(Y) for neural net with N = {}".format(self.N))
+        print("Do in chunks of {}".format(chunk_size))
+
+        while n_done < self.N:
+            X_chunk = self.X[:, n_done:n_done + n]
+            Y_hat_chunk = self.feed_forward_and_predict_Y(X_chunk)
+            if n_done == 0:
+                Y_hat = Y_hat_chunk
+            else:
+                Y_hat = np.hstack([Y_hat, Y_hat_chunk])
+            n_done += X_chunk.shape[1]
+        assert(Y_hat.shape[0] == self.C)
+        return Y_hat
+
     def summary_row(self):
         results_row = {}
 
@@ -278,7 +319,12 @@ class NeuralNet:
         results_row['converged'] = self.converged
 
         # TODO: will need to loop over the points to build up predictions
-        Y_hat = self.feed_forward_and_predict_Y(self.X)
+        if self.N > 1000:
+            # build up Y_hat in sets of n points
+            Y_hat = self.build_up_Y_hat()
+
+        else:
+            Y_hat = self.feed_forward_and_predict_Y(self.X)
         square_loss = self.square_loss(self.Y, Y_hat)
 
         results_row['square loss'] = square_loss
