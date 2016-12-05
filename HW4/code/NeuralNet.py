@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import scipy as sp
+import subprocess
 import sys
 
 import pandas as pd
@@ -540,13 +541,37 @@ class NeuralNet:
 
         make_image(image_vector, filename)
 
-    def visualize_10_W1_weights(self):
-        random_indices = np.random.choice(range(self.W1.shape[1]),
-                                          size=(10,), replace=False)
+    def visualize_10_W1_weights(self, folder):
         # select 10 at random
-        # save images for each
-        # stitch them togethe with subprocess.check_call() 
-        pass
+        random_indices = np.random.choice(range(self.W1.shape[0]),
+                                          size=(10,), replace=False)
+        print("indices sampled: {}".format(random_indices))
+        image_num = 1
+        image_paths = []
+
+        for index in random_indices:
+            x_i = self.W1[index,:]
+            image_filename = 'weight_{}.pdf'.format(index)
+            image_paths.append(image_filename)
+            self.display_hidden_node_as_image(x_i, image_filename)
+        print(image_paths)
+
+        # stitch them together with subprocess.check_call()
+        i_names_str = " ".join(image_paths)
+        print(i_names_str)
+        command = "convert +append " + i_names_str +' concat.png'
+        print(command)
+
+        # remove the individuals
+        subprocess.call(command, shell=True)
+        for image in image_paths:
+            command = 'rm {}'.format(image)
+            print(command)
+
+        # move the product to the correct dir
+        command = 'mv concat.png {}'.format(folder)
+        print(command)
+        subprocess.call(command, shell=True)
 
 
 def make_dir(path):
