@@ -21,6 +21,8 @@ class NeuralNet:
                  outputTF,
                  minibatch_size,
                  eta0,
+                 hiddenTF_kwargs=None,
+                 outputTF_kwargs=None,
                  summarise_frequency = None, # unit of steps
                  convergence_delta = 0.01,
                  verbose=False,
@@ -43,7 +45,11 @@ class NeuralNet:
         if X_test is None or y_test is None:
             self.monitor_test_data = False
 
-        self.hiddenTF = hiddenTF(n_in = self.d, n_nodes=hidden_nodes)
+        if hiddenTF_kwargs is not None:
+            self.hiddenTF = hiddenTF(n_in = self.d, n_nodes=hidden_nodes,
+                                     **hiddenTF_kwargs)
+        else:
+            self.hiddenTF = hiddenTF(n_in = self.d, n_nodes=hidden_nodes)
         self.hidden_n = hidden_nodes
         # Weights to multiply incoming x by; feeds the hidden layer
         # TODO: randomly sample X once I am working with bigger data
@@ -52,7 +58,11 @@ class NeuralNet:
         self.hidden_a = None # transfer_fun(W.dot(X)) # used in feed forward, minibatch sized
         self.hidden_delta = None
 
-        self.outputTF = outputTF(n_in = hidden_nodes, n_nodes = self.C)
+        if outputTF_kwargs is not None:
+            self.outputTF = outputTF(n_in = hidden_nodes, n_nodes = self.C,
+                                     **outputTF_kwargs)
+        else:
+            self.outputTF = outputTF(n_in = hidden_nodes, n_nodes = self.C)
         # Weights between the hidden layer and the output layer.
         # Shape = (self.d, n_above = self.C)
         # TODO: randomly sample X once I am working with bigger data
@@ -479,7 +489,8 @@ class NeuralNet:
             fig.savefig(filepath) # + '.pdf')
         return fig
 
-    def plot_square_loss(self, x='epoch', filepath=None, normalized=True):
+    def plot_square_loss(self, x='epoch', filepath=None,
+                         normalized=True, logy=True):
 
         y_values = [c for c in self.results.columns if 'square loss' in c]
         if normalized:
@@ -490,7 +501,7 @@ class NeuralNet:
             y_label = 'square loss)'
 
         p = self.plot_ys(x=x, y_value_list=y_values, ylabel=y_label,
-                         logx=False, logy=False, filepath=filepath)
+                         logx=False, logy=logy, filepath=filepath)
         return p
 
     def plot_01_loss(self, x='epoch', filepath=None, normalized=True):

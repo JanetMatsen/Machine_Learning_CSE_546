@@ -1,11 +1,30 @@
 import numpy as np
 
-class LinearTF:
-    def __init__(self, n_in, n_nodes):
-        self.name = 'linear'
+
+class TF(object):
+    def __init__(self, n_in, n_nodes, scale_W1=1, scale_W2=1):
         self.n_in = n_in
         self.n_nodes = n_nodes
-        pass
+        self.W_shape = (self.n_nodes, self.n_in)
+        self.scale_W1 = scale_W1
+        self.scale_W2 = scale_W2
+
+    def initialize_weights_X_norm_squared(self, neural_net):
+        X = neural_net.X
+        d = np.linalg.norm(X) # ||X||^2
+        weights = np.random.normal(0, 1/d, size = self.W_shape)
+
+        print('normalize W1 by {}'.format(self.scale_W1))
+        return weights/self.scale_W1
+
+
+class LinearTF(TF):
+    def __init__(self, n_in, n_nodes, scale_W1=None, scale_W2=None):
+        super(LinearTF, self).__init__(n_in=n_in,
+                                       n_nodes=n_nodes,
+                                       scale_W1=scale_W1,
+                                       scale_W2=scale_W2)
+        self.name = 'linear'
 
     @staticmethod
     def f(z):
@@ -23,13 +42,13 @@ class LinearTF:
         return self.initialize_W1(neural_net)
 
 
-class TanhTF:
-    def __init__(self, n_in, n_nodes):
+class TanhTF(TF):
+    def __init__(self, n_in, n_nodes, scale_W1=1, scale_W2=1):
+        super(TanhTF, self).__init__(n_in=n_in,
+                                     n_nodes=n_nodes,
+                                     scale_W1=scale_W1,
+                                     scale_W2=scale_W2)
         self.name = 'tanh'
-        self.n_in = n_in
-        self.n_nodes = n_nodes
-        self.W_shape = (self.n_nodes, self.n_in)
-        pass
 
     @staticmethod
     def f(z):
@@ -48,22 +67,18 @@ class TanhTF:
         return np.ones(shape=(d,n)) - np.square(self.f(z))
 
     def initialize_W1(self, neural_net):
-        X = neural_net.X
-        norm = np.linalg.norm(X)
-        norm_squared =  np.multiply(norm, norm)
-        return np.random.normal(0, 1/norm_squared, size = self.W_shape)
+        return super(TanhTF, self).initialize_weights_X_norm_squared(neural_net)
 
     def initialize_W2(self, neural_net):
-        return np.random.normal(0, 1/self.n_nodes**2, size=self.W_shape)
+        weights = np.random.normal(0, 1/self.n_nodes**2, size=self.W_shape)
+        return weights/self.scale_W2
 
 
-class ReLuTF:
-    def __init__(self, n_in, n_nodes):
+class ReLuTF(TF):
+    def __init__(self, n_in, n_nodes, scale_W1=1, scale_W2=1):
+        super(ReLuTF, self).__init__(n_in=n_in, n_nodes=n_nodes,
+                                     scale_W1=scale_W1, scale_W2=scale_W2)
         self.name = 'ReLu'
-        self.n_in = n_in
-        self.n_nodes = n_nodes
-        self.W_shape = (self.n_nodes, self.n_in)
-        pass
 
     @staticmethod
     def f(z):
@@ -77,16 +92,13 @@ class ReLuTF:
         return np.maximum(z, 0, z)
 
     def initialize_W1(self, neural_net):
-        X = neural_net.X
-        norm = np.linalg.norm(X)
-        norm_squared =  np.multiply(norm, norm)
-        return np.random.normal(0, 1/norm_squared, size = self.W_shape)
+        return super(ReLuTF, self).initialize_weights_X_norm_squared(neural_net)
 
     def initialize_W2(self, neural_net):
         # Want E[Y] <= 0.1 E[Y]
         # What is E[Y]?
         E = np.mean(neural_net.Y, axis=1)
+        E = E/self.scale_W2
         print("E[Y]:\n{}".format(E))
         return E/neural_net.C
-
 
