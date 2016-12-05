@@ -62,6 +62,7 @@ class ReLuTF:
         self.name = 'ReLu'
         self.n_in = n_in
         self.n_nodes = n_nodes
+        self.W_shape = (self.n_nodes, self.n_in)
         pass
 
     @staticmethod
@@ -73,10 +74,19 @@ class ReLuTF:
 
     @staticmethod
     def grad(z):
-        if z < 0:
-            return 0
-        else:
-            return 1
+        return np.maximum(z, 0, z)
 
-    def initialize_weights(self, X):
-        raise NotImplementedError
+    def initialize_W1(self, neural_net):
+        X = neural_net.X
+        norm = np.linalg.norm(X)
+        norm_squared =  np.multiply(norm, norm)
+        return np.random.normal(0, 1/norm_squared, size = self.W_shape)
+
+    def initialize_W2(self, neural_net):
+        # Want E[Y] <= 0.1 E[Y]
+        # What is E[Y]?
+        E = np.mean(neural_net.Y, axis=1)
+        print("E[Y]:\n{}".format(E))
+        return E/neural_net.C
+
+
