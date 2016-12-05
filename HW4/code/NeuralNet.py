@@ -2,7 +2,9 @@ import copy
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import scipy as sp
+import sys
 
 import pandas as pd
 
@@ -253,6 +255,8 @@ class NeuralNet:
                 epoch_step += 1
                 self.steps += 1
                 self.epochs = self.points_stepped/self.N
+
+            sys.stdout.write(".")
 
         print('Iterated {} epoch(s)'.format(epochs))
 
@@ -516,13 +520,14 @@ class NeuralNet:
 
         return fig
 
-    def plot_weights(self, weights):
+    def display_hidden_node_as_image(self, weights, filename=None):
         assert self.PCA is not None, "need PCA pickle loaded for use"
         assert weights.shape == (50,), "expected shape (50,); " \
                                        "got {}".format(weights.shape)
+        print(weights)
 
         # Take it out of PCA space.
-        image_vector = self.PCA.transform_number_up(weights, center=True)
+        image_vector = self.PCA.transform_number_up(weights, center=False)
 
         def make_image(data, path=None):
             plt.figure(figsize=(0.7,0.7))
@@ -533,8 +538,23 @@ class NeuralNet:
                 plt.savefig(path)
                 plt.close()
 
-        make_image(image_vector)
+        make_image(image_vector, filename)
 
+    def visualize_10_W1_weights(self):
+        random_indices = np.random.choice(range(self.W1.shape[1]),
+                                          size=(10,), replace=False)
+        # select 10 at random
+        # save images for each
+        # stitch them togethe with subprocess.check_call() 
+        pass
+
+
+def make_dir(path):
+    if not os.path.exists(path):
+        print('make dir')
+        os.mkdir(path)
+    else:
+        print('path {} exists'.format(path))
 
 class NeuralNetException(Exception):
     def __init__(self, message):
