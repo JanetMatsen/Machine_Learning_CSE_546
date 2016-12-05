@@ -569,6 +569,7 @@ class NeuralNet:
         for image in image_paths:
             command = 'rm {}'.format(image)
             print(command)
+            subprocess.call(command, shell=True)
 
         # move the product to the correct dir
         command = 'mv concat.png {}'.format(folder)
