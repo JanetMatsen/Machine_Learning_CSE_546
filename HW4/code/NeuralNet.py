@@ -303,6 +303,10 @@ class NeuralNet:
 
     def summarise(self):
         results_row = self.summary_row()
+        colnames = [c + ', training' if 'loss' in c else c for c in
+                    results_row.columns]
+        results_row.columns = colnames
+
         if self.monitor_test_data:
             merge_col = 'step'
             test_results = self.assess_test_data()
@@ -312,11 +316,6 @@ class NeuralNet:
             cols_to_keep.append(merge_col)
             test_results = test_results[cols_to_keep]
             colnames = test_results.columns.tolist()
-            #def append_string(string, identifier, addition):
-            #    if identifier in string:
-            #        return string + addition
-            #    else:
-            #        return string
             colnames = [c + ', testing' if 'loss' in c else c
                         for c in colnames]
             test_results.columns = colnames
@@ -325,7 +324,6 @@ class NeuralNet:
 
             # only keep some columns
         self.results = pd.concat([self.results, results_row])
-
 
     def track_weights(self):
 
@@ -360,7 +358,8 @@ class NeuralNet:
         """
         if self.results.shape[0] < 2:
             pass
-        last_losses = self.results.tail(2)['square loss'].reset_index(drop=True)
+        last_losses = \
+            self.results.tail(2)['square loss, training'].reset_index(drop=True)
         old_square_loss = last_losses[0]
         square_loss = last_losses[1]
         improvement = old_square_loss - square_loss
@@ -400,7 +399,8 @@ class NeuralNet:
 
         fig, ax = plt.subplots(1, 1, figsize=figsize)
         if colors is None:
-            colors = ['#bcbddc', '#756bb1', '#74c476', '#006d2c']
+            #colors = ['#bcbddc', '#756bb1', '#74c476', '#006d2c']
+            colors = ['#939393', '#006d2c']
 
         ys_plotted = 0
         for y in y_value_list:
@@ -423,17 +423,32 @@ class NeuralNet:
             fig.savefig(filepath) # + '.pdf')
         return fig
 
-    def plot_square_loss(self, x='epoch', y_values=['(square loss)/N'],
-                         filepath=None):
+    def plot_square_loss(self, x='epoch', filepath=None, normalized=True):
 
-        p = self.plot_ys(x=x, y_value_list=y_values, ylabel=y_values[0],
+        y_values = [c for c in self.results.columns if 'square loss' in c]
+        if normalized:
+            y_values = [c for c in y_values if "/N" in c]
+            y_label = '(square loss)/N'
+        else:
+            y_values = [c for c in y_values if "/N" not in c]
+            y_label = 'square loss)'
+
+        p = self.plot_ys(x=x, y_value_list=y_values, ylabel=y_label,
                          logx=False, logy=False, filepath=filepath)
         return p
 
-    def plot_01_loss(self, x='epoch', y_values=['(0/1 loss)/N'],
-                         filepath=None):
+    def plot_01_loss(self, x='epoch', filepath=None, normalized=True):
 
-        p = self.plot_ys(x=x, y_value_list=y_values, ylabel=y_values[0],
+        y_values = [c for c in self.results.columns if '0/1 loss' in c]
+
+        if normalized:
+            y_values = [c for c in y_values if "/N" in c]
+            y_label = '(0/1 loss)/N'
+        else:
+            y_values = [c for c in y_values if "/N" not in c]
+            y_label = '0/1 loss'
+
+        p = self.plot_ys(x=x, y_value_list=y_values, ylabel=y_label,
                          logx=False, logy=False, filepath=filepath)
         return p
 
