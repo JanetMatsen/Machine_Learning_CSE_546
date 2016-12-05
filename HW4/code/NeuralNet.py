@@ -294,8 +294,6 @@ class NeuralNet:
     def build_up_Y_hat(self, chunk_size = 1000):
         n = chunk_size
         n_done = 0
-        print("Build up hat(Y) for neural net with N = {}".format(self.N))
-        print("Do in chunks of {}".format(chunk_size))
 
         while n_done < self.N:
             X_chunk = self.X[:, n_done:n_done + n]
@@ -356,7 +354,6 @@ class NeuralNet:
         if self.monitor_test_data:
             merge_col = 'step'
             test_results = self.assess_test_data()
-            print(test_results.columns)
             cols_to_keep = [c for c in test_results.columns if
                             ('loss' in c)]
             cols_to_keep.append(merge_col)
