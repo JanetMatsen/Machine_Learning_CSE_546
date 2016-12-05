@@ -24,6 +24,7 @@ class NeuralNet:
                  X_test = None,
                  y_test = None,
                  monitor_test_data = True,
+                 PCA = None # load HW3 pickle for plotting
                  ):
         self.X = X  # columns are data points, rows are features
         self.y = y
@@ -80,6 +81,8 @@ class NeuralNet:
         self.W1_tracking = pd.DataFrame()
         self.W2_tracking = pd.DataFrame()
         self.verbose = verbose
+
+        self.PCA = PCA # load HW3 pickle for plotting
 
     def copy(self):
         # TODO: not deep for some purposes.
@@ -512,6 +515,25 @@ class NeuralNet:
             ax[1].legend_.remove()
 
         return fig
+
+    def plot_weights(self, weights):
+        assert self.PCA is not None, "need PCA pickle loaded for use"
+        assert weights.shape == (50,), "expected shape (50,); " \
+                                       "got {}".format(weights.shape)
+
+        # Take it out of PCA space.
+        image_vector = self.PCA.transform_number_up(weights, center=True)
+
+        def make_image(data, path=None):
+            plt.figure(figsize=(0.7,0.7))
+            p=plt.imshow(data.reshape(28, 28), origin='upper', interpolation='none')
+            p.set_cmap('gray_r')
+            plt.axis('off')
+            if path is not None:
+                plt.savefig(path)
+                plt.close()
+
+        make_image(image_vector)
 
 
 class NeuralNetException(Exception):
