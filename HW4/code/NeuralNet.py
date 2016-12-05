@@ -100,6 +100,7 @@ class NeuralNet:
         return Y
 
     def feed_forward(self, X):
+        # Todo: break into chunks if N for this x is large (??)
         # make sure the dimensions are (2, n_cols)
         assert X.ndim == 2, 'X shape is {}; need (2, # of points), ' \
                             'e.g. X[:, 0:1]'.format(X.shape)
@@ -339,6 +340,7 @@ class NeuralNet:
 
     def assess_test_data(self):
         test_model = self.copy()
+        test_model.data_type = 'testing data loaded'
         test_model.d, test_model.N = self.X_test.shape
         test_model.X = test_model.X_test
         test_model.y = test_model.y_test
