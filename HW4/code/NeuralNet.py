@@ -324,6 +324,9 @@ class NeuralNet:
         results_row['eta'] = self.eta
         results_row['eta0'] = self.eta0
         results_row['converged'] = self.converged
+        results_row['hidden TF'] = self.hiddenTF.name
+        results_row['output TF'] = self.outputTF.name
+        results_row['minibatch size'] = self.minibatch_size
 
         # TODO: will need to loop over the points to build up predictions
         if self.N > 1000:
@@ -525,7 +528,6 @@ class NeuralNet:
         assert self.PCA is not None, "need PCA pickle loaded for use"
         assert weights.shape == (50,), "expected shape (50,); " \
                                        "got {}".format(weights.shape)
-        print(weights)
 
         # Take it out of PCA space.
         image_vector = self.PCA.transform_number_up(weights, center=False)
