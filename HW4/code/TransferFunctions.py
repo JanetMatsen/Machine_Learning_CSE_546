@@ -2,12 +2,15 @@ import numpy as np
 
 
 class TF(object):
-    def __init__(self, n_in, n_nodes, scale_W1=1, scale_W2=1):
+    def __init__(self, n_in, n_nodes, scale_W1=1, scale_W2=1,
+                 W1_init_strategy=None, W2_init_strategy=None):
         self.n_in = n_in
         self.n_nodes = n_nodes
         self.W_shape = (self.n_nodes, self.n_in)
         self.scale_W1 = scale_W1
         self.scale_W2 = scale_W2
+        self.W1_init_strategy = W1_init_strategy
+        self.W2_init_strategy = W2_init_strategy
 
     def initialize_weights_X_norm_squared(self, neural_net):
         X = neural_net.X
@@ -16,6 +19,12 @@ class TF(object):
 
         print('normalize W1 by {}'.format(self.scale_W1))
         return weights/self.scale_W1
+
+    def initialize_Xavier(self, neural_net):
+        # Var(W_i) = 1/n_in
+        # http://andyljones.tumblr.com/post/110998971763/an-explanation-of-xavier-initialization
+        print('initializing with Xavier')
+        return np.random.normal(0, 1/neural_net.d, size = self.W_shape)
 
 
 class LinearTF(TF):
@@ -43,11 +52,14 @@ class LinearTF(TF):
 
 
 class TanhTF(TF):
-    def __init__(self, n_in, n_nodes, scale_W1=1, scale_W2=1):
+    def __init__(self, n_in, n_nodes, scale_W1=1, scale_W2=1,
+                 W1_init_strategy=None, W2_init_strategy=None):
         super(TanhTF, self).__init__(n_in=n_in,
                                      n_nodes=n_nodes,
                                      scale_W1=scale_W1,
-                                     scale_W2=scale_W2)
+                                     scale_W2=scale_W2,
+                                     W1_init_strategy=W1_init_strategy,
+                                     W2_init_strategy=W2_init_strategy)
         self.name = 'tanh'
 
     @staticmethod
@@ -67,7 +79,10 @@ class TanhTF(TF):
         return np.ones(shape=(d,n)) - np.square(self.f(z))
 
     def initialize_W1(self, neural_net):
-        return super(TanhTF, self).initialize_weights_X_norm_squared(neural_net)
+        if self.W1_init_strategy is None:
+            return super(TanhTF, self).initialize_weights_X_norm_squared(neural_net)
+        elif self.W1_init_strategy == 'Xavier':
+            return super(TanhTF, self).initialize_Xavier(neural_net)
 
     def initialize_W2(self, neural_net):
         weights = np.random.normal(0, 1/self.n_nodes**2, size=self.W_shape)
@@ -75,9 +90,12 @@ class TanhTF(TF):
 
 
 class ReLuTF(TF):
-    def __init__(self, n_in, n_nodes, scale_W1=1, scale_W2=1):
+    def __init__(self, n_in, n_nodes, scale_W1=1, scale_W2=1,
+                 W1_init_strategy=None, W2_init_strategy=None):
         super(ReLuTF, self).__init__(n_in=n_in, n_nodes=n_nodes,
-                                     scale_W1=scale_W1, scale_W2=scale_W2)
+                                     scale_W1=scale_W1, scale_W2=scale_W2,
+                                     W1_init_strategy=W1_init_strategy,
+                                     W2_init_strategy=W2_init_strategy)
         self.name = 'ReLu'
 
     @staticmethod

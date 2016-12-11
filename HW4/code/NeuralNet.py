@@ -552,7 +552,8 @@ class NeuralNet:
             return self.plot_ys(x='step',
                                 y_value_list=['sum(weights)/N_weights'],
                                 df=df,
-                                ylabel='sum of weights for {}'.format(weights))
+                                ylabel='(sum of weights/N_weights) for {}'
+                                       ''.format(weights))
         else:
             return self.plot_ys(x='step',
                                 y_value_list=['sum(weights)'],
