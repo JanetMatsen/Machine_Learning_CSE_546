@@ -408,7 +408,7 @@ class NeuralNet:
             for c, w in zip(colnames, W):
                 row[c] = w
             #row['epochs'] = self.epochs
-            row['steps'] = self.steps
+            row['step'] = self.steps
             #row['points stepped'] = self.points_stepped
             row = {k:[v] for k, v in row.items()}
             return pd.DataFrame(row)
@@ -521,10 +521,10 @@ class NeuralNet:
 
     def plot_weight_evolution(self):
         fig, ax = plt.subplots(1, 2, figsize=(10, 3.5))
-        self.W1_tracking.set_index('steps').plot(ax=ax[0])#, figsize=(3,3))
+        self.W1_tracking.set_index('step').plot(ax=ax[0])#, figsize=(3,3))
         ax[0].set_title("W1 element weights")
 
-        self.W2_tracking.set_index('steps').plot(ax=ax[1])#, figsize=(3,3))
+        self.W2_tracking.set_index('step').plot(ax=ax[1])#, figsize=(3,3))
         ax[1].set_title("W2 element weights")
 
         # remove the legend if > 10 points
@@ -534,6 +534,32 @@ class NeuralNet:
             ax[1].legend_.remove()
 
         return fig
+
+    def plot_sum_of_weights(self, weights='W1', normalize=True):
+        if weights == 'W1':
+            df = self.W1_tracking.copy()
+        elif weights == 'W2':
+            df = self.W2_tracking.copy()
+        else:
+            raise NeuralNetException("weights arg should specify W1 or W2")
+        num_weights = len(df.columns.tolist()) - 1 # 1 for step listing
+        print('number of weights: {}'.format(num_weights))
+
+        df['sum(weights)'] = df.sum(axis=1)
+        df['sum(weights)/N_weights'] = df.sum(axis=1) / num_weights
+
+        if normalize:
+            return self.plot_ys(x='step',
+                                y_value_list=['sum(weights)/N_weights'],
+                                df=df,
+                                ylabel='sum of weights for {}'.format(weights))
+        else:
+            return self.plot_ys(x='step',
+                                y_value_list=['sum(weights)'],
+                                df=df,
+                                ylabel='sum of weights for {}'.format(weights))
+
+
 
     def display_hidden_node_as_image(self, weights, filename=None):
         assert self.PCA is not None, "need PCA pickle loaded for use"
@@ -586,6 +612,7 @@ class NeuralNet:
         command = 'mv concat.png {}'.format(folder)
         print(command)
         subprocess.call(command, shell=True)
+
 
 
 def make_dir(path):
