@@ -310,20 +310,36 @@ class NeuralNet:
         y = self.predict_y_from_Y(Y_hat)
         return y
 
-    def build_up_Y_hat(self, chunk_size = 1000):
+    def build_up_Y_hat_and_gradient(self, chunk_size = 1000):
         n = chunk_size
         n_done = 0
+        n_loops = 0
 
         while n_done < self.N:
+            import pdb; pdb.set_trace()
             X_chunk = self.X[:, n_done:n_done + n]
+            Y_chunk = None
             Y_hat_chunk = self.feed_forward_and_predict_Y(X_chunk)
+            grad_W1_sample, grad_W2_sample = self.gradients(X_chunk, Y_chunk)
             if n_done == 0:
                 Y_hat = Y_hat_chunk
+                grad_W1 = grad_W1_sample
+                grad_W2 = grad_W2_sample
             else:
                 Y_hat = np.hstack([Y_hat, Y_hat_chunk])
+                grad_W1 += grad_W1_sample
+                grad_W2 += grad_W2_sample
             n_done += X_chunk.shape[1]
+            n_loops += 1
+
+        grad_W1 = grad_W1/n_loops
+        grad_W2 = grad_W1/n_loops
+        assert grad_W1.shape == self.W1.shape
+        assert grad_W2.shape == self.W2.shape
+
         assert(Y_hat.shape[0] == self.C)
-        return Y_hat
+
+        return Y_hat, grad_W1, grad_W2
 
     def summary_row(self):
         results_row = {}
@@ -341,10 +357,15 @@ class NeuralNet:
         # TODO: will need to loop over the points to build up predictions
         if self.N > 1000:
             # build up Y_hat in sets of n points
-            Y_hat = self.build_up_Y_hat()
+            Y_hat, grad_W1, grad_W2 = self.build_up_Y_hat_and_gradient()
 
         else:
             Y_hat = self.feed_forward_and_predict_Y(self.X)
+            grad_W1, grad_W2 = self.gradients(self.X, self.Y)
+
+        results_row['norm(W1 gradient)'] = np.linalg.norm(grad_W1)
+        results_row['norm(W2 gradient)'] = np.linalg.norm(grad_W2)
+
         square_loss = self.square_loss(self.Y, Y_hat)
 
         results_row['square loss'] = square_loss
@@ -407,8 +428,8 @@ class NeuralNet:
             row = {}
             for c, w in zip(colnames, W):
                 row[c] = w
-            #row['epochs'] = self.epochs
-            row['step'] = self.steps
+            row['epoch'] = self.epochs
+            #row['step'] = self.steps
             #row['points stepped'] = self.points_stepped
             row = {k:[v] for k, v in row.items()}
             return pd.DataFrame(row)
@@ -520,11 +541,12 @@ class NeuralNet:
         return p
 
     def plot_weight_evolution(self):
+        x = 'epoch'
         fig, ax = plt.subplots(1, 2, figsize=(10, 3.5))
-        self.W1_tracking.set_index('step').plot(ax=ax[0])#, figsize=(3,3))
+        self.W1_tracking.set_index(x).plot(ax=ax[0])#, figsize=(3,3))
         ax[0].set_title("W1 element weights")
 
-        self.W2_tracking.set_index('step').plot(ax=ax[1])#, figsize=(3,3))
+        self.W2_tracking.set_index(x).plot(ax=ax[1])#, figsize=(3,3))
         ax[1].set_title("W2 element weights")
 
         # remove the legend if > 10 points
@@ -536,31 +558,57 @@ class NeuralNet:
         return fig
 
     def plot_sum_of_weights(self, weights='W1', normalize=True):
+        x = 'epoch'
         if weights == 'W1':
             df = self.W1_tracking.copy()
         elif weights == 'W2':
             df = self.W2_tracking.copy()
         else:
             raise NeuralNetException("weights arg should specify W1 or W2")
-        num_weights = len(df.columns.tolist()) - 1 # 1 for step listing
+        df.set_index(x, inplace=True)
+        num_weights = len(df.columns.tolist())
         print('number of weights: {}'.format(num_weights))
 
         df['sum(weights)'] = df.sum(axis=1)
-        df['sum(weights)/N_weights'] = df.sum(axis=1) / num_weights
+        df['sum(weights)/N_weights'] = df['sum(weights)'] / num_weights
+        df.reset_index(inplace=True) # make x col available
 
         if normalize:
-            return self.plot_ys(x='step',
+            return self.plot_ys(x=x,
                                 y_value_list=['sum(weights)/N_weights'],
                                 df=df,
                                 ylabel='(sum of weights/N_weights) for {}'
                                        ''.format(weights))
         else:
-            return self.plot_ys(x='step',
+            return self.plot_ys(x=x,
                                 y_value_list=['sum(weights)'],
                                 df=df,
                                 ylabel='sum of weights for {}'.format(weights))
 
+    def plot_norm_of_gradient(self, norm='W1', normalize=True):
+        if norm == 'W1':
+            y = 'norm(W1 gradient)'
+            N_nodes = self.W1.shape
+        elif norm == 'W2':
+            y = 'norm(W2 gradient)'
+            N_nodes = self.W2.shape
+        else:
+            raise NeuralNetException("norm arg should specify W1 or W2")
 
+        df = self.results.copy()
+        normalized_colname = y + "/N_nodes_in"
+        df[normalized_colname] = df[y]/N_nodes[1] # TODO: check
+
+        if normalize:
+            return self.plot_ys(x='step',
+                                y_value_list=[normalized_colname],
+                                df=df,
+                                ylabel=y)
+        else:
+            return self.plot_ys(x='step',
+                                y_value_list=[y],
+                                df=df,
+                                ylabel=y)
 
     def display_hidden_node_as_image(self, weights, filename=None):
         assert self.PCA is not None, "need PCA pickle loaded for use"
