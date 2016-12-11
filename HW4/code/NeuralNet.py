@@ -93,6 +93,8 @@ class NeuralNet:
         self.results = pd.DataFrame()
         self.W1_tracking = pd.DataFrame()
         self.W2_tracking = pd.DataFrame()
+        self.W1_dot_prod_checking = pd.DataFrame()
+        self.W2_dot_prod_checking = pd.DataFrame()
         self.verbose = verbose
 
         self.PCA = PCA # load HW3 pickle for plotting
@@ -256,6 +258,7 @@ class NeuralNet:
                 if self.points_stepped%self.summarise_frequency == 0:
                     self.summarise()
                     self.track_weights()
+                    self.track_dot_prods()
                     # check if it's time to exit the loop
                     if self.results.shape[0] >= 2:
                         self.test_convergence()
@@ -474,6 +477,33 @@ class NeuralNet:
         if abs(frac_improvement) < self.convergence_delta:
             self.converged = True
 
+    def sample_dot_prods(self, num=500):
+        # make a copy so I'm sure I'm not breaking things
+        c = self.copy()
+        X = c.X[:, 0:num]
+        c.feed_forward(X)
+        return {'hidden z':c.hidden_z, 'output z':c.output_z}
+
+    def track_dot_prods(self):
+        sample_dot_prods = self.sample_dot_prods()
+        W1_z = sample_dot_prods['hidden z']
+        W2_z = sample_dot_prods['output z']
+        W1_row = {'epoch':self.epochs}
+        W2_row = {'epoch':self.epochs}
+        W1_row['mean(z): W1'] = np.mean(W1_z)
+        W2_row['mean(z): W2'] = np.mean(W2_z)
+        W1_row['median(z): W1'] = np.median(W1_z)
+        W2_row['median(z): W2'] = np.median(W2_z)
+
+        W1_row = {k:[v] for k, v in W1_row.items()}
+        W2_row = {k:[v] for k, v in W2_row.items()}
+        W1_row = pd.DataFrame(W1_row)
+        W2_row = pd.DataFrame(W2_row)
+        self.W1_dot_prod_checking = pd.concat([self.W1_dot_prod_checking,
+                                               W1_row])
+        self.W2_dot_prod_checking = pd.concat([self.W2_dot_prod_checking,
+                                                 W2_row])
+
     def plot_ys(self, x, y_value_list, ylabel=None, df=None,
                 logx=True, logy=False, y0_line = False,
                 colors=None, figsize=(4, 3), filepath=None):
@@ -590,6 +620,27 @@ class NeuralNet:
                                 y_value_list=['sum(weights)'],
                                 df=df,
                                 ylabel='sum of weights for {}'.format(weights))
+
+    def plot_sample_dot_prods(self, figsize=(6,3)):
+        df1 = self.W1_dot_prod_checking
+        df2 = self.W2_dot_prod_checking
+        x='epoch'
+        y1='mean(z): W1'
+        y2='mean(z): W2'
+        y1r='median(z): W1'
+        y2r='median(z): W2'
+
+        fig, axs = plt.subplots(1, 2, sharey=True, figsize=figsize)
+        #axd = {'mean':axs[0], 'median':axs[1]}
+        #yd = {'mean':(y1, y2), 'median':(y1r, y2r)}
+        colors = ['#cc4c02', '#8c2d04']
+
+        axs[0].plot(df1[x], df1[y1], linestyle='--', marker='o', color=colors[0])
+        axs[0].plot(df2[x], df2[y2], linestyle='--', marker='o', color=colors[1])
+        axs[1].plot(df1[x], df1[y1r], linestyle='--', marker='o', color=colors[0])
+        axs[1].plot(df2[x], df2[y2r], linestyle='--', marker='o', color=colors[1])
+
+        return fig
 
     def plot_norm_of_gradient(self, norm='W1', normalize=True,
                               logx=False, logy=True):
