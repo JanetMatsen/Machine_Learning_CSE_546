@@ -316,11 +316,15 @@ class NeuralNet:
         n_loops = 0
 
         while n_done < self.N:
-            import pdb; pdb.set_trace()
             X_chunk = self.X[:, n_done:n_done + n]
-            Y_chunk = None
+            Y_chunk = self.Y[:, n_done:n_done + n]
             Y_hat_chunk = self.feed_forward_and_predict_Y(X_chunk)
+
+            # get gradients of the chunks
             grad_W1_sample, grad_W2_sample = self.gradients(X_chunk, Y_chunk)
+            assert grad_W1_sample.shape == self.W1.shape
+            assert grad_W2_sample.shape == self.W2.shape
+
             if n_done == 0:
                 Y_hat = Y_hat_chunk
                 grad_W1 = grad_W1_sample
@@ -329,11 +333,12 @@ class NeuralNet:
                 Y_hat = np.hstack([Y_hat, Y_hat_chunk])
                 grad_W1 += grad_W1_sample
                 grad_W2 += grad_W2_sample
+
             n_done += X_chunk.shape[1]
             n_loops += 1
 
-        grad_W1 = grad_W1/n_loops
-        grad_W2 = grad_W1/n_loops
+        grad_W1 = grad_W1/n_loops # TODO: not quite right if each loop doesn't have same # of points.
+        grad_W2 = grad_W2/n_loops # TODO: not quite right if each loop doesn't have same # of points.
         assert grad_W1.shape == self.W1.shape
         assert grad_W2.shape == self.W2.shape
 
