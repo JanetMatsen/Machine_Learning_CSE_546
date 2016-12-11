@@ -455,6 +455,7 @@ class NeuralNet:
         old_square_loss = last_losses[0]
         square_loss = last_losses[1]
         improvement = old_square_loss - square_loss
+        frac_improvement = (old_square_loss - square_loss)/old_square_loss
         percent_improvement = (improvement)/old_square_loss*100
 
         if self.verbose:
@@ -470,7 +471,7 @@ class NeuralNet:
 
         if abs(improvement)/self.N > 1000:
             print("large improvement: {}%".format(percent_improvement))
-        if abs(improvement) < self.convergence_delta:
+        if abs(frac_improvement) < self.convergence_delta:
             self.converged = True
 
     def plot_ys(self, x, y_value_list, ylabel=None, df=None,
@@ -562,7 +563,7 @@ class NeuralNet:
 
         return fig
 
-    def plot_sum_of_weights(self, weights='W1', normalize=True):
+    def plot_sum_of_weights(self, weights='W1', normalize=False):
         x = 'epoch'
         if weights == 'W1':
             df = self.W1_tracking.copy()
@@ -590,7 +591,8 @@ class NeuralNet:
                                 df=df,
                                 ylabel='sum of weights for {}'.format(weights))
 
-    def plot_norm_of_gradient(self, norm='W1', normalize=True):
+    def plot_norm_of_gradient(self, norm='W1', normalize=True,
+                              logx=False, logy=True):
         if norm == 'W1':
             y = 'norm(W1 gradient)'
             N_nodes = self.W1.shape
@@ -607,12 +609,12 @@ class NeuralNet:
         if normalize:
             return self.plot_ys(x='step',
                                 y_value_list=[normalized_colname],
-                                df=df,
+                                df=df, logx=logx, logy=logy,
                                 ylabel=y)
         else:
             return self.plot_ys(x='step',
                                 y_value_list=[y],
-                                df=df,
+                                df=df, logx=logx, logy=logy,
                                 ylabel=y)
 
     def display_hidden_node_as_image(self, weights, filename=None):

@@ -20,11 +20,17 @@ class TF(object):
         print('normalize W1 by {}'.format(self.scale_W1))
         return weights/self.scale_W1
 
-    def initialize_Xavier(self, neural_net):
+    def initialize_Xavier(self, neural_net, hidden=True):
         # Var(W_i) = 1/n_in
+        # np.random.normal(0, 1/n_in**0.5, size = self.W_shape)
         # http://andyljones.tumblr.com/post/110998971763/an-explanation-of-xavier-initialization
         print('initializing with Xavier')
-        return np.random.normal(0, 1/neural_net.d, size = self.W_shape)
+        if hidden:
+            denom = neural_net.d**0.5
+        else:  # TODO
+            print("Xavier not set up for output")
+            raise Exception
+        return np.random.normal(0, 1/denom, size = self.W_shape)
 
 
 class LinearTF(TF):
@@ -80,9 +86,10 @@ class TanhTF(TF):
 
     def initialize_W1(self, neural_net):
         if self.W1_init_strategy is None:
-            return super(TanhTF, self).initialize_weights_X_norm_squared(neural_net)
+            W = super(TanhTF, self).initialize_weights_X_norm_squared(neural_net)
         elif self.W1_init_strategy == 'Xavier':
-            return super(TanhTF, self).initialize_Xavier(neural_net)
+            W = super(TanhTF, self).initialize_Xavier(neural_net)
+        return W/self.scale_W1
 
     def initialize_W2(self, neural_net):
         weights = np.random.normal(0, 1/self.n_nodes**2, size=self.W_shape)
@@ -110,7 +117,8 @@ class ReLuTF(TF):
         return np.maximum(z, 0, z)
 
     def initialize_W1(self, neural_net):
-        return super(ReLuTF, self).initialize_weights_X_norm_squared(neural_net)
+        W = super(ReLuTF, self).initialize_weights_X_norm_squared(neural_net)
+        return W/self.scale_W1
 
     def initialize_W2(self, neural_net):
         # Want E[Y] <= 0.1 E[Y]
