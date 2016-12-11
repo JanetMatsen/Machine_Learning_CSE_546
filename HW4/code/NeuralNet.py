@@ -506,7 +506,7 @@ class NeuralNet:
 
     def plot_ys(self, x, y_value_list, ylabel=None, df=None,
                 logx=True, logy=False, y0_line = False,
-                colors=None, figsize=(4, 3), filepath=None):
+                colors=None, figsize=(4, 3), filepath=None, min_0=True):
         if df is None:
             assert self.results is not None
             df = self.results
@@ -534,7 +534,8 @@ class NeuralNet:
         if y0_line:
             ax.axhline(y=0, color='k')
 
-        plt.gca().set_ylim(bottom=0)
+        if min_0:
+            plt.gca().set_ylim(bottom=0)
 
         plt.legend(loc = 'best')
         plt.xlabel(x)
@@ -612,13 +613,13 @@ class NeuralNet:
         if normalize:
             return self.plot_ys(x=x,
                                 y_value_list=['sum(weights)/N_weights'],
-                                df=df,
+                                df=df, min_0=False,
                                 ylabel='(sum of weights/N_weights) for {}'
                                        ''.format(weights))
         else:
             return self.plot_ys(x=x,
                                 y_value_list=['sum(weights)'],
-                                df=df,
+                                df=df, min_0=False,
                                 ylabel='sum of weights for {}'.format(weights))
 
     def plot_sample_dot_prods(self, figsize=(6,3)):
@@ -639,6 +640,7 @@ class NeuralNet:
         axs[0].plot(df2[x], df2[y2], linestyle='--', marker='o', color=colors[1])
         axs[1].plot(df1[x], df1[y1r], linestyle='--', marker='o', color=colors[0])
         axs[1].plot(df2[x], df2[y2r], linestyle='--', marker='o', color=colors[1])
+        plt.legend(loc = 'best')
 
         return fig
 
