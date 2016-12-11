@@ -224,6 +224,8 @@ class NeuralNet:
         self.update_weights(W1_grad, W2_grad, n_pts=n_pts)
 
     def run(self, epochs):
+        self.track_weights()
+        self.track_dot_prods()
         # turn off convergence so it will run:
         if self.converged:
             print("setting self.converged to False for re-run")
@@ -596,6 +598,7 @@ class NeuralNet:
 
     def plot_sum_of_weights(self, weights='W1', normalize=False):
         x = 'epoch'
+        colors=['#fa9fb5', '#f768a1']
         if weights == 'W1':
             df = self.W1_tracking.copy()
         elif weights == 'W2':
@@ -613,13 +616,13 @@ class NeuralNet:
         if normalize:
             return self.plot_ys(x=x,
                                 y_value_list=['sum(weights)/N_weights'],
-                                df=df, min_0=False,
+                                df=df, min_0=False, colors=colors,
                                 ylabel='(sum of weights/N_weights) for {}'
                                        ''.format(weights))
         else:
             return self.plot_ys(x=x,
                                 y_value_list=['sum(weights)'],
-                                df=df, min_0=False,
+                                df=df, min_0=False, colors=colors,
                                 ylabel='sum of weights for {}'.format(weights))
 
     def plot_sample_dot_prods(self, figsize=(6,3)):
@@ -646,6 +649,7 @@ class NeuralNet:
 
     def plot_norm_of_gradient(self, norm='W1', normalize=True,
                               logx=False, logy=True):
+        colors=['#8c96c6', '#8c6bb1']
         if norm == 'W1':
             y = 'norm(W1 gradient)'
             N_nodes = self.W1.shape
@@ -662,11 +666,11 @@ class NeuralNet:
         if normalize:
             return self.plot_ys(x='step',
                                 y_value_list=[normalized_colname],
-                                df=df, logx=logx, logy=logy,
+                                df=df, logx=logx, logy=logy, colors=colors,
                                 ylabel=y)
         else:
             return self.plot_ys(x='step',
-                                y_value_list=[y],
+                                y_value_list=[y], colors=colors,
                                 df=df, logx=logx, logy=logy,
                                 ylabel=y)
 
