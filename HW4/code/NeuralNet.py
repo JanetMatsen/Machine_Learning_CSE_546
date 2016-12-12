@@ -254,8 +254,6 @@ class NeuralNet:
                 assert X.shape[1] == Y.shape[1], 'size mismatch for X and Y'
                 num_pts += X.shape[1]
                 self.points_stepped += X.shape[1]
-                if self.verbose:
-                    print('step {} of epoch {}'.format(epoch_step, epoch))
 
                 self.step(X, Y)
 
@@ -295,7 +293,6 @@ class NeuralNet:
     def square_loss(self, Y_predicted, Y_truth):
         # given y, and hat{y}, how many are wrong?
         assert Y_predicted.shape == Y_truth.shape, 'shapes unequal'
-        n_pts = Y_truth.shape[1]
         errors = Y_predicted - Y_truth
         errors_squared = np.multiply(errors, errors)
         squares_sum = errors_squared.sum()
@@ -565,6 +562,8 @@ class NeuralNet:
 
         p = self.plot_ys(x=x, y_value_list=y_values, ylabel=y_label,
                          logx=False, logy=logy, filepath=filepath)
+        plt.tight_layout()
+
         return p
 
     def plot_01_loss(self, x='epoch', filepath=None, normalized=True):
