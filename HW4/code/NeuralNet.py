@@ -24,7 +24,7 @@ class NeuralNet:
                  hiddenTF_kwargs=None,
                  outputTF_kwargs=None,
                  summarise_frequency = None, # unit of steps
-                 convergence_delta = 0.01,
+                 convergence_delta = None,
                  verbose=False,
                  X_test = None,
                  y_test = None,
@@ -77,7 +77,10 @@ class NeuralNet:
         self.steps = 0
         self.points_stepped = 0
         self.epochs = 0
-        self.convergence_delta = convergence_delta
+        if convergence_delta is None:
+            self.convergence_delta = self.eta0/10
+        else:
+            self.convergence_delta = convergence_delta
         self.converged = False
         if summarise_frequency is None:
             if self.N < 100:
@@ -488,14 +491,14 @@ class NeuralNet:
 
     def track_dot_prods(self):
         sample_dot_prods = self.sample_dot_prods()
-        W1_z = sample_dot_prods['hidden z']
-        W2_z = sample_dot_prods['output z']
+        W1_z = np.abs(sample_dot_prods['hidden z'])
+        W2_z = np.abs(sample_dot_prods['output z'])
         W1_row = {'epoch':self.epochs}
         W2_row = {'epoch':self.epochs}
-        W1_row['mean(z): W1'] = np.mean(W1_z)
-        W2_row['mean(z): W2'] = np.mean(W2_z)
-        W1_row['median(z): W1'] = np.median(W1_z)
-        W2_row['median(z): W2'] = np.median(W2_z)
+        W1_row['mean(abs(z)): W1'] = np.mean(W1_z)
+        W2_row['mean(abs(z)): W2'] = np.mean(W2_z)
+        W1_row['median(abs(z)): W1'] = np.median(W1_z)
+        W2_row['median(abs(z)): W2'] = np.median(W2_z)
 
         W1_row = {k:[v] for k, v in W1_row.items()}
         W2_row = {k:[v] for k, v in W2_row.items()}
@@ -609,19 +612,19 @@ class NeuralNet:
         num_weights = len(df.columns.tolist())
         print('number of weights: {}'.format(num_weights))
 
-        df['sum(weights)'] = df.sum(axis=1)
-        df['sum(weights)/N_weights'] = df['sum(weights)'] / num_weights
+        df['sum(abs(weights))'] = df.abs().sum(axis=1)
+        df['sum(abs(weights))/N_weights'] = df['sum(abs(weights))'] / num_weights
         df.reset_index(inplace=True) # make x col available
 
         if normalize:
             return self.plot_ys(x=x,
-                                y_value_list=['sum(weights)/N_weights'],
+                                y_value_list=['sum(abs(weights))/N_weights'],
                                 df=df, min_0=False, colors=colors,
                                 ylabel='(sum of weights/N_weights) for {}'
                                        ''.format(weights))
         else:
             return self.plot_ys(x=x,
-                                y_value_list=['sum(weights)'],
+                                y_value_list=['sum(abs(weights))'],
                                 df=df, min_0=False, colors=colors,
                                 ylabel='sum of weights for {}'.format(weights))
 
@@ -629,10 +632,10 @@ class NeuralNet:
         df1 = self.W1_dot_prod_checking
         df2 = self.W2_dot_prod_checking
         x='epoch'
-        y1='mean(z): W1'
-        y2='mean(z): W2'
-        y1r='median(z): W1'
-        y2r='median(z): W2'
+        y1='mean(abs(z)): W1'
+        y2='mean(abs(z)): W2'
+        y1r='median(abs(z)): W1'
+        y2r='median(abs(z)): W2'
 
         fig, axs = plt.subplots(1, 2, sharey=True, figsize=figsize)
         #axd = {'mean':axs[0], 'median':axs[1]}
