@@ -51,10 +51,12 @@ class LinearTF(TF):
 
     def initialize_W1(self, neural_net):
         # note: X is not used
-        return np.random.normal(0, 1, size=(self.n_nodes, self.n_in))
+        W = np.random.normal(0, 1, size=(self.n_nodes, self.n_in))
+        return W/self.scale_W1
 
     def initialize_W2(self, neural_net):
-        return self.initialize_W1(neural_net)
+        W = np.random.normal(0, 1, size=(self.n_nodes, self.n_in))
+        return W*1./self.scale_W2
 
 
 class TanhTF(TF):
