@@ -20,7 +20,7 @@ class NeuralNet:
                  hiddenTF,
                  outputTF,
                  minibatch_size,
-                 eta0,
+                 eta0, decay_learning_rate=False,
                  hiddenTF_kwargs=None,
                  outputTF_kwargs=None,
                  summarise_frequency = None, # unit of steps
@@ -74,6 +74,7 @@ class NeuralNet:
         self.minibatch_size = minibatch_size
         self.eta0 = eta0
         self.eta = eta0
+        self.decay_learning_rate=decay_learning_rate
         self.steps = 0
         self.points_stepped = 0
         self.epochs = 0
@@ -218,6 +219,12 @@ class NeuralNet:
     def update_weights(self, W1_grad, W2_grad, n_pts):
         # TODO: some eta decay strategy.
         assert n_pts > 0
+        if self.decay_learning_rate:
+            d = self.epochs**0.5
+            if d < 1:
+                d = 1
+            self.eta = d*self.eta0
+        # update weights
         self.W1 += - (self.eta/n_pts)*W1_grad
         self.W2 += - (self.eta/n_pts)*W2_grad
 

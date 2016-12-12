@@ -13,13 +13,14 @@ from NeuralNet import NeuralNet
 class HyperparameterExplorer:
     def __init__(self, X, y, hiddenTF, outputTF,
                  learning_rate, epochs, minibatch_size,
-                 test_X, test_y):
+                 test_X, test_y, decay_learning_rate=False):
         self.X = X
         self.y = y
         self.hidden_TF = hiddenTF
         self.output_TF = outputTF
         self.epochs = epochs
         self.learning_rate = learning_rate
+        self.decay_learning_rate = decay_learning_rate
         self.minibatch_size=minibatch_size
         self.test_X = test_X
         self.test_y = test_y
@@ -34,6 +35,7 @@ class HyperparameterExplorer:
             m = NeuralNet(X=self.X, y=self.y,
                           X_test=self.test_X, y_test=self.test_y,
                           eta0=self.learning_rate,
+                          decay_learning_rate=self.decay_learning_rate,
                           hiddenTF = self.hidden_TF,
                           outputTF = self.output_TF,
                           hidden_nodes=500,  # todo: generalize
@@ -90,7 +92,7 @@ class HyperparameterExplorer:
                               values='(0/1 loss)/N, testing')
         fig, ax = plt.subplots(1, 1, figsize=(4, 3))
         sns.heatmap(piv, ax=ax, cmap='Greens_r')
-        plt.title('hyperparameter exploration: eta={}, epoochs={}'
+        plt.title('hyperparameter exploration: eta={}, epochs={}'
                   ''.format(self.learning_rate, self.epochs))
         plt.tight_layout()
         return fig
