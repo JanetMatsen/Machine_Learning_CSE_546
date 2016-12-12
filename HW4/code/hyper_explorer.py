@@ -66,12 +66,15 @@ class HyperparameterExplorer:
         print("saved as model # {}".format(self.num_models))
 
     def test_tuples_of_W_init_scales(self, tuple_list):
+        n = 1
         for t in tuple_list:
+            print("model {} in set of {}".format(n, len(tuple_list)))
             print("testing with scale_W1={}, scale_W2={}".format(t[0], t[1]))
             hiddenTF_kwargs={"scale_W1":t[0]}
             outputTF_kwargs={"scale_W2":t[1]}
             self.train_model(hiddenTF_kwargs=hiddenTF_kwargs,
                              outputTF_kwargs=outputTF_kwargs)
+            n += 1
 
     def test_combo_of_tuples(self, scale_list, scale_listW2=None):
         """

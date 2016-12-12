@@ -125,11 +125,15 @@ class ReLuTF(TF):
         # W is already normalized in parent method
         return W
 
-    def initialize_W2(self, neural_net):
-        # Want E[Y] <= 0.1 E[Y]
-        # What is E[Y]?
-        E = np.mean(neural_net.Y, axis=1)
-        E = E/self.scale_W2
-        print("E[Y]:\n{}".format(E))
-        return E/neural_net.C
+    def initialize_W2(self, neural_net, N01=True):
+        if N01:
+            W = np.random.normal(0, 1, size = self.W_shape)
+            return W/self.scale_W2
+        else:
+            # Want E[Y] <= 0.1 E[Y]
+            # What is E[Y]?
+            E = np.mean(neural_net.Y, axis=1)
+            E = E/self.scale_W2
+            print("E[Y]:\n{}".format(E))
+            return E/neural_net.C
 

@@ -79,7 +79,7 @@ class NeuralNet:
         self.points_stepped = 0
         self.epochs = 0
         if convergence_delta is None:
-            self.convergence_delta = self.eta0/10
+            self.convergence_delta = self.eta0/100
         else:
             self.convergence_delta = convergence_delta
         self.converged = False
