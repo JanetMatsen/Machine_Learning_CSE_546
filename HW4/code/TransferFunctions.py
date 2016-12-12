@@ -52,10 +52,12 @@ class LinearTF(TF):
     def initialize_W1(self, neural_net):
         # note: X is not used
         W = np.random.normal(0, 1, size=(self.n_nodes, self.n_in))
+        print('scale W1 by {}'.format(self.scale_W1))
         return W/self.scale_W1
 
     def initialize_W2(self, neural_net):
         W = np.random.normal(0, 1, size=(self.n_nodes, self.n_in))
+        print('scale W2 by {}'.format(self.scale_W2))
         return W*1./self.scale_W2
 
 
@@ -120,7 +122,8 @@ class ReLuTF(TF):
 
     def initialize_W1(self, neural_net):
         W = super(ReLuTF, self).initialize_weights_X_norm_squared(neural_net)
-        return W/self.scale_W1
+        # W is already normalized in parent method
+        return W
 
     def initialize_W2(self, neural_net):
         # Want E[Y] <= 0.1 E[Y]
